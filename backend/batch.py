@@ -7,8 +7,8 @@
     python batch.py --keyword "カード名"  # 特定キーワードのみ
     python batch.py --stats            # 統計情報表示
 
-cron設定例（30分ごと）:
-    */30 * * * * cd /home/ubuntu/project/backend && /home/ubuntu/project/backend/venv/bin/python batch.py >> /var/log/card-price-batch.log 2>&1
+cron設定例（1時間ごと）:
+    0 * * * * cd /home/ubuntu/project/backend && /home/ubuntu/project/backend/venv/bin/python batch.py >> /var/log/card-price-batch.log 2>&1
 """
 import sys
 import os
@@ -33,6 +33,7 @@ from database import (
     get_or_create_card,
     save_price_if_changed,
     get_database_stats,
+    get_inactive_keywords,
 )
 from scrapers import (
     CardrushScraper,
@@ -95,6 +96,48 @@ def load_keywords() -> list[str]:
 
     log(f"Using {len(DEFAULT_KEYWORDS)} default keywords")
     return DEFAULT_KEYWORDS
+
+
+def cleanup_inactive_keywords(days: int = 30) -> list[str]:
+    """
+    指定日数以上検索されていないキーワードをkeywords.txtから削除
+
+    Returns:
+        削除されたキーワードのリスト
+    """
+    # DBから非アクティブキーワードを取得
+    inactive = get_inactive_keywords(days)
+    if not inactive:
+        log("No inactive keywords to remove")
+        return []
+
+    inactive_set = set(kw.lower() for kw in inactive)
+
+    # keywords.txtを読み込み
+    if not KEYWORDS_FILE.exists():
+        return []
+
+    with open(KEYWORDS_FILE, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+
+    # 非アクティブキーワードを除外して書き直し
+    removed = []
+    new_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("#") or not stripped:
+            new_lines.append(line)
+        elif stripped.lower() in inactive_set:
+            removed.append(stripped)
+        else:
+            new_lines.append(line)
+
+    if removed:
+        with open(KEYWORDS_FILE, "w", encoding="utf-8") as f:
+            f.writelines(new_lines)
+        log(f"Removed {len(removed)} inactive keywords: {', '.join(removed)}")
+
+    return removed
 
 
 def acquire_lock() -> bool:
@@ -260,6 +303,9 @@ async def run_batch(keywords: list[str] = None):
     # DB初期化確認
     init_database()
     init_shops()
+
+    # 30日間検索されていないキーワードを削除
+    cleanup_inactive_keywords(days=30)
 
     # キーワードリスト
     if keywords is None:

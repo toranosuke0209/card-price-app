@@ -25,7 +25,7 @@ def add_keyword_if_new(keyword: str) -> bool:
         True: 追加した, False: 既に存在
     """
     keyword = keyword.strip()
-    if not keyword or len(keyword) < 2:
+    if not keyword or len(keyword) < 3:
         return False
 
     # 既存キーワードを読み込み

@@ -448,6 +448,21 @@ def cleanup_old_prices(days: int = 90):
         return deleted
 
 
+def get_inactive_keywords(days: int = 30) -> list[str]:
+    """指定日数以上検索されていないキーワードを取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        # 各キーワードの最終検索日を取得し、30日以上前のものを抽出
+        cursor.execute("""
+            SELECT keyword, MAX(searched_at) as last_searched
+            FROM search_logs
+            GROUP BY keyword
+            HAVING MAX(searched_at) < datetime('now', ? || ' days')
+        """, (f"-{days}",))
+        rows = cursor.fetchall()
+        return [row["keyword"] for row in rows]
+
+
 def get_database_stats() -> dict:
     """DB統計情報"""
     with get_connection() as conn:

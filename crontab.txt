@@ -4,8 +4,8 @@
 #   crontab -e
 #   以下の行を追加
 
-# 30分ごとにバッチ実行
-*/30 * * * * cd /home/ubuntu/project/backend && /home/ubuntu/project/backend/venv/bin/python batch.py >> /var/log/card-price-batch.log 2>&1
+# 1時間ごとにバッチ実行
+0 * * * * cd /home/ubuntu/project/backend && /home/ubuntu/project/backend/venv/bin/python batch.py >> /var/log/card-price-batch.log 2>&1
 
 # 毎日深夜3時に古いデータ削除（90日以上前）
 0 3 * * * cd /home/ubuntu/project/backend && /home/ubuntu/project/backend/venv/bin/python -c "from database import cleanup_old_prices; cleanup_old_prices(90)" >> /var/log/card-price-cleanup.log 2>&1
