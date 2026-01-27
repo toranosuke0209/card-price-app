@@ -2,6 +2,7 @@
 カード価格比較API
 
 変更履歴:
+- 2026/01/27: 検索キーワード自動追加機能
 - 2026/01/27: リダイレクトAPI追加（クリック計測）
 - 2026/01/27: DB参照方式に変更（スクレイピング廃止）
 - 旧実装は main_old.py に保存
@@ -11,6 +12,40 @@ from urllib.parse import unquote
 from fastapi import FastAPI, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, RedirectResponse
+
+# キーワードファイルのパス
+KEYWORDS_FILE = Path(__file__).parent / "keywords.txt"
+
+
+def add_keyword_if_new(keyword: str) -> bool:
+    """
+    キーワードがkeywords.txtになければ追加する
+
+    Returns:
+        True: 追加した, False: 既に存在
+    """
+    keyword = keyword.strip()
+    if not keyword or len(keyword) < 2:
+        return False
+
+    # 既存キーワードを読み込み
+    existing = set()
+    if KEYWORDS_FILE.exists():
+        with open(KEYWORDS_FILE, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    existing.add(line.lower())
+
+    # 既に存在する場合は追加しない
+    if keyword.lower() in existing:
+        return False
+
+    # 新しいキーワードを追加
+    with open(KEYWORDS_FILE, "a", encoding="utf-8") as f:
+        f.write(f"\n{keyword}")
+
+    return True
 
 from database import (
     init_database,
@@ -62,6 +97,10 @@ async def search(keyword: str = Query(..., min_length=1, description="検索キ�
 
     # 検索ログを記録
     record_search(keyword, len(prices))
+
+    # 結果が少なければキーワードを自動追加（次回バッチで取得される）
+    if len(prices) < 5:
+        add_keyword_if_new(keyword)
 
     # サイト別にグループ化（旧API互換形式）
     site_items = {}
