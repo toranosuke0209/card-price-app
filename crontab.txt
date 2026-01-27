@@ -1,0 +1,14 @@
+# カード価格バッチ処理 cron設定
+#
+# 設定方法（EC2で実行）:
+#   crontab -e
+#   以下の行を追加
+
+# 30分ごとにバッチ実行
+*/30 * * * * cd /home/ubuntu/project/backend && /home/ubuntu/project/backend/venv/bin/python batch.py >> /var/log/card-price-batch.log 2>&1
+
+# 毎日深夜3時に古いデータ削除（90日以上前）
+0 3 * * * cd /home/ubuntu/project/backend && /home/ubuntu/project/backend/venv/bin/python -c "from database import cleanup_old_prices; cleanup_old_prices(90)" >> /var/log/card-price-cleanup.log 2>&1
+
+# ログローテーション用（週次でログファイルをクリア）
+0 0 * * 0 echo "" > /var/log/card-price-batch.log

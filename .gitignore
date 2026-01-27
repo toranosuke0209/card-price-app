@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+.venv/
+env/
+.env
+
+# Database
+*.db
+*.sqlite3
+
+# Debug files
+debug_*.html
+debug_*.py
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Lock files
+.batch.lock
+
+# Test files
+test_*.py
+venv/
+venv*

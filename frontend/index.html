@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>カード価格比較</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>カード価格比較</h1>
+            <p class="subtitle">複数サイトの価格を一括検索</p>
+        </header>
+
+        <div class="search-box">
+            <input
+                type="text"
+                id="keyword"
+                placeholder="カード名を入力（例: ジークフリード）"
+                autofocus
+            >
+            <button id="search-btn">検索</button>
+        </div>
+
+        <div class="controls">
+            <label>
+                並び替え:
+                <select id="sort-select">
+                    <option value="price-asc">価格が安い順</option>
+                    <option value="price-desc">価格が高い順</option>
+                    <option value="site">サイト別</option>
+                </select>
+            </label>
+            <span id="result-count"></span>
+        </div>
+
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>検索中...</p>
+        </div>
+
+        <div id="error" class="error hidden"></div>
+
+        <div id="results" class="results"></div>
+
+        <!-- ホーム画面セクション（検索前に表示） -->
+        <div id="home" class="home-section">
+            <div class="home-stats" id="home-stats"></div>
+
+            <div class="home-grid">
+                <div class="home-card">
+                    <h3>最近更新</h3>
+                    <div id="recently-updated" class="home-list"></div>
+                </div>
+
+                <div class="home-card">
+                    <h3>値上がり</h3>
+                    <div id="price-up" class="home-list"></div>
+                </div>
+
+                <div class="home-card">
+                    <h3>値下がり</h3>
+                    <div id="price-down" class="home-list"></div>
+                </div>
+
+                <div class="home-card">
+                    <h3>注目カード</h3>
+                    <div id="hot-cards" class="home-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
