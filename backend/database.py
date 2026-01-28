@@ -844,15 +844,31 @@ def save_batch_log(batch_type: str, shop_name: str, status: str,
         return cursor.lastrowid
 
 
-def get_recent_batch_logs(limit: int = 10) -> list[dict]:
-    """最近のバッチ実行ログを取得"""
+def get_recent_batch_logs(limit: int = 10, per_shop: bool = False) -> list[dict]:
+    """最近のバッチ実行ログを取得
+
+    Args:
+        limit: 取得件数（per_shop=Falseの場合に使用）
+        per_shop: Trueの場合、各ショップの最新1件のみを取得
+    """
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT * FROM batch_logs
-            ORDER BY finished_at DESC
-            LIMIT ?
-        """, (limit,))
+        if per_shop:
+            # 各ショップの最新ログを取得
+            cursor.execute("""
+                SELECT * FROM batch_logs b1
+                WHERE finished_at = (
+                    SELECT MAX(finished_at) FROM batch_logs b2
+                    WHERE b2.shop_name = b1.shop_name
+                )
+                ORDER BY finished_at DESC
+            """)
+        else:
+            cursor.execute("""
+                SELECT * FROM batch_logs
+                ORDER BY finished_at DESC
+                LIMIT ?
+            """, (limit,))
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
 

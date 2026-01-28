@@ -174,8 +174,8 @@ async def get_home_data():
     # DB統計
     stats = get_database_stats()
 
-    # 最近のバッチ実行結果
-    batch_logs = get_recent_batch_logs(limit=5)
+    # 最近のバッチ実行結果（各ショップの最新1件）
+    batch_logs = get_recent_batch_logs(per_shop=True)
 
     return {
         "recently_updated": recently_updated_list,
