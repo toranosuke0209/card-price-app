@@ -6,7 +6,7 @@
 - **GitHub**: https://github.com/toranosuke0209/card-price-app
 - **EC2 IP (Elastic IP)**: `54.64.210.46`
 - **SSHキー**: `C:/Users/ykh2435064/Desktop/card-price-app-key.pem`
-- **サイトURL**: http://54.64.210.46:8000/
+- **サイトURL**: https://54.64.210.46:8000/ （自己署名証明書）
 
 ---
 
@@ -107,9 +107,9 @@ cd backend
 # マイグレーション実行
 ./venv/bin/python -c "from database import migrate_v3_auth; migrate_v3_auth()"
 
-# サーバー再起動
+# サーバー再起動（HTTPS）
 kill $(pidof python) 2>/dev/null
-nohup ./venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8000 > /home/ubuntu/project/server.log 2>&1 &
+nohup ./venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8000 --ssl-keyfile=/home/ubuntu/project/certs/key.pem --ssl-certfile=/home/ubuntu/project/certs/cert.pem > /home/ubuntu/project/server.log 2>&1 &
 ```
 
 ---
@@ -179,9 +179,80 @@ CREATE TABLE admin_invites (
 
 ---
 
+## 2026-01-29: HTTPS化・画像問題修正
+
+### 実施内容
+
+#### 1. HTTPS化（自己署名証明書）
+家のWi-Fiでページ表示が崩れる問題があり、HTTPS化で解決。
+- `/home/ubuntu/project/certs/` に証明書を配置
+- uvicornのSSLオプションで起動
+
+```bash
+# HTTPS起動コマンド
+kill $(pidof python) 2>/dev/null
+cd /home/ubuntu/project/backend && nohup ./venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8000 --ssl-keyfile=/home/ubuntu/project/certs/key.pem --ssl-certfile=/home/ubuntu/project/certs/cert.pem > /home/ubuntu/project/server.log 2>&1 &
+```
+
+#### 2. ホビステ画像プロキシ追加
+ホビステが外部からの画像直接アクセスをブロック（403）していたため、プロキシAPIを追加。
+- `backend/main.py` に `/api/image-proxy` エンドポイント追加
+- `frontend/app.js` でホビステ画像をプロキシ経由に変更
+
+#### 3. フルアヘッド画像修正完了
+- 空画像エントリ554件を削除
+- 再クロールして正しい画像を取得済み
+
+#### 4. 遊々亭クローラー全セット対応
+`local/crawl_yuyutei.py` の `BS_SETS` リストを拡張：
+- BS01〜BS74（全メインセット）
+- BSC01〜BSC50（コラボ/構築済み）
+- SD01〜SD67（スターターデッキ）
+- PB01〜PB46（プロモ）
+- CB01〜CB30（コラボブースター）
+
+遊々亭クロール実行：`local/crawl_and_upload.bat` をダブルクリック
+
+---
+
+## 🚨 未解決: フルアヘッド価格表示問題
+
+### 症状
+フルアヘッドの価格表示がおかしい（詳細未確認）
+
+### 調査ポイント
+1. `batch_crawl.py` の `FullaheadCrawler._parse_card_from_link` メソッド（価格取得部分）
+2. DBに保存されている価格データを確認
+3. 検索結果で返される価格を確認
+
+### 確認コマンド
+```bash
+# フルアヘッドの価格データ確認
+ssh -i "C:/Users/ykh2435064/Desktop/card-price-app-key.pem" ubuntu@54.64.210.46 "cd /home/ubuntu/project/backend && ./venv/bin/python << 'PYEOF'
+import sqlite3
+conn = sqlite3.connect('card_price.db')
+cursor = conn.cursor()
+cursor.execute('''
+    SELECT c.name, p.price, p.stock_text
+    FROM prices p
+    JOIN cards c ON p.card_id = c.id
+    JOIN shops s ON p.shop_id = s.id
+    WHERE s.name LIKE '%フルアヘッド%'
+    ORDER BY p.fetched_at DESC
+    LIMIT 10
+''')
+for r in cursor.fetchall():
+    print(f'{r[0][:30]}... -> {r[1]}円 ({r[2]})')
+PYEOF"
+```
+
+---
+
 ## 次回作業候補
 
-1. **セキュリティ強化**
+1. **フルアヘッド価格問題修正**（優先）
+
+2. **セキュリティ強化**
    - JWT_SECRET_KEYを環境変数に設定
    - CORS設定を本番用に制限
    - HTTPS対応

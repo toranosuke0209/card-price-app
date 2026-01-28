@@ -40,8 +40,8 @@ echo   PEM: !PEM_PATH!
 echo   HOST: !EC2_HOST!
 echo.
 
-REM Crawl
-python crawl_yuyutei.py --sets bs74
+REM Crawl (all sets)
+python crawl_yuyutei.py
 if errorlevel 1 (
     echo Crawl failed
     pause
