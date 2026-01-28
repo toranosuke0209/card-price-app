@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Optional
 from contextlib import contextmanager
 
-from models import Shop, Card, Price, Click, SearchLog, BatchProgress, FetchQueue
+from models import Shop, Card, Price, Click, SearchLog, BatchProgress, FetchQueue, User, Favorite, AdminInvite
 
 # DBファイルパス
 DB_PATH = Path(__file__).parent / "card_price.db"
@@ -196,6 +196,62 @@ def migrate_v2():
 
         conn.commit()
         print("Migration v2 completed")
+
+
+def migrate_v3_auth():
+    """v3スキーマへのマイグレーション（認証機能追加）"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # ユーザーテーブル
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY,
+                username TEXT UNIQUE NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                role TEXT DEFAULT 'user',
+                is_active INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # お気に入りテーブル
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS favorites (
+                id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                card_id INTEGER NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                FOREIGN KEY (card_id) REFERENCES cards(id),
+                UNIQUE(user_id, card_id)
+            )
+        """)
+
+        # 管理者招待コードテーブル
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS admin_invites (
+                id INTEGER PRIMARY KEY,
+                code TEXT UNIQUE NOT NULL,
+                created_by INTEGER,
+                used_by INTEGER,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                used_at TEXT,
+                FOREIGN KEY (created_by) REFERENCES users(id),
+                FOREIGN KEY (used_by) REFERENCES users(id)
+            )
+        """)
+
+        # インデックス作成
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_favorites_card ON favorites(card_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_admin_invites_code ON admin_invites(code)")
+
+        conn.commit()
+        print("Migration v3 (auth) completed")
 
 
 def init_shops():
@@ -891,6 +947,187 @@ def get_latest_crawl_result() -> dict | None:
 # カード登録（拡張版）
 # =============================================================================
 
+# =============================================================================
+# ユーザー操作
+# =============================================================================
+
+def create_user(username: str, email: str, password_hash: str, role: str = 'user') -> User:
+    """ユーザーを作成"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO users (username, email, password_hash, role)
+            VALUES (?, ?, ?, ?)
+        """, (username, email, password_hash, role))
+        conn.commit()
+        cursor.execute("SELECT * FROM users WHERE id = ?", (cursor.lastrowid,))
+        row = cursor.fetchone()
+        return User(**dict(row))
+
+
+def get_user_by_username(username: str) -> Optional[User]:
+    """ユーザー名でユーザーを取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
+        row = cursor.fetchone()
+        return User(**dict(row)) if row else None
+
+
+def get_user_by_email(email: str) -> Optional[User]:
+    """メールアドレスでユーザーを取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE email = ?", (email,))
+        row = cursor.fetchone()
+        return User(**dict(row)) if row else None
+
+
+def get_user_by_id(user_id: int) -> Optional[User]:
+    """IDでユーザーを取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+        row = cursor.fetchone()
+        return User(**dict(row)) if row else None
+
+
+def get_all_users() -> list[User]:
+    """全ユーザーを取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users ORDER BY created_at DESC")
+        rows = cursor.fetchall()
+        return [User(**dict(row)) for row in rows]
+
+
+# =============================================================================
+# お気に入り操作
+# =============================================================================
+
+def add_favorite(user_id: int, card_id: int) -> Optional[Favorite]:
+    """お気に入りを追加"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                INSERT INTO favorites (user_id, card_id)
+                VALUES (?, ?)
+            """, (user_id, card_id))
+            conn.commit()
+            cursor.execute("SELECT * FROM favorites WHERE id = ?", (cursor.lastrowid,))
+            row = cursor.fetchone()
+            return Favorite(**dict(row))
+        except sqlite3.IntegrityError:
+            return None
+
+
+def remove_favorite(user_id: int, card_id: int) -> bool:
+    """お気に入りを削除"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            DELETE FROM favorites WHERE user_id = ? AND card_id = ?
+        """, (user_id, card_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def get_user_favorites(user_id: int) -> list[dict]:
+    """ユーザーのお気に入りカード一覧を取得（価格情報付き）"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT f.id as favorite_id, f.created_at as favorited_at,
+                   c.id as card_id, c.name as card_name
+            FROM favorites f
+            JOIN cards c ON f.card_id = c.id
+            WHERE f.user_id = ?
+            ORDER BY f.created_at DESC
+        """, (user_id,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+
+def get_user_favorite_ids(user_id: int) -> list[int]:
+    """ユーザーのお気に入りカードIDリストを取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT card_id FROM favorites WHERE user_id = ?", (user_id,))
+        rows = cursor.fetchall()
+        return [row['card_id'] for row in rows]
+
+
+def is_favorite(user_id: int, card_id: int) -> bool:
+    """お気に入り登録済みかチェック"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT 1 FROM favorites WHERE user_id = ? AND card_id = ?
+        """, (user_id, card_id))
+        return cursor.fetchone() is not None
+
+
+# =============================================================================
+# 管理者招待コード操作
+# =============================================================================
+
+def create_admin_invite(code: str, created_by: int) -> AdminInvite:
+    """管理者招待コードを作成"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO admin_invites (code, created_by)
+            VALUES (?, ?)
+        """, (code, created_by))
+        conn.commit()
+        cursor.execute("SELECT * FROM admin_invites WHERE id = ?", (cursor.lastrowid,))
+        row = cursor.fetchone()
+        return AdminInvite(**dict(row))
+
+
+def get_admin_invite(code: str) -> Optional[AdminInvite]:
+    """招待コードを取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM admin_invites WHERE code = ?", (code,))
+        row = cursor.fetchone()
+        return AdminInvite(**dict(row)) if row else None
+
+
+def use_admin_invite(code: str, user_id: int) -> bool:
+    """招待コードを使用済みにする"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE admin_invites
+            SET used_by = ?, used_at = CURRENT_TIMESTAMP
+            WHERE code = ? AND used_by IS NULL
+        """, (user_id, code))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def get_all_admin_invites(created_by: Optional[int] = None) -> list[AdminInvite]:
+    """招待コード一覧を取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        if created_by:
+            cursor.execute("""
+                SELECT * FROM admin_invites
+                WHERE created_by = ?
+                ORDER BY created_at DESC
+            """, (created_by,))
+        else:
+            cursor.execute("SELECT * FROM admin_invites ORDER BY created_at DESC")
+        rows = cursor.fetchall()
+        return [AdminInvite(**dict(row)) for row in rows]
+
+
+# =============================================================================
+# カード登録（拡張版）
+# =============================================================================
+
 def get_or_create_card_v2(name: str, card_no: str = None,
                           source_shop_id: int = None,
                           detail_url: str = None) -> Card:
@@ -930,10 +1167,46 @@ def get_or_create_card_v2(name: str, card_no: str = None,
 # 初期化実行
 # =============================================================================
 
+def get_card_by_id(card_id: int) -> Optional[Card]:
+    """IDでカードを取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM cards WHERE id = ?", (card_id,))
+        row = cursor.fetchone()
+        return Card(**dict(row)) if row else None
+
+
+def get_admin_stats() -> dict:
+    """管理者用統計情報"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        stats = get_database_stats()
+
+        # ユーザー数
+        cursor.execute("SELECT COUNT(*) FROM users")
+        stats["users"] = cursor.fetchone()[0]
+
+        # 管理者数
+        cursor.execute("SELECT COUNT(*) FROM users WHERE role = 'admin'")
+        stats["admins"] = cursor.fetchone()[0]
+
+        # お気に入り登録数
+        cursor.execute("SELECT COUNT(*) FROM favorites")
+        stats["favorites"] = cursor.fetchone()[0]
+
+        # 未使用招待コード数
+        cursor.execute("SELECT COUNT(*) FROM admin_invites WHERE used_by IS NULL")
+        stats["unused_invites"] = cursor.fetchone()[0]
+
+        return stats
+
+
 if __name__ == "__main__":
     # 直接実行時にDB初期化
     init_database()
     migrate_v2()  # v2マイグレーション追加
+    migrate_v3_auth()  # v3認証マイグレーション追加
     init_shops()
     print("\nDatabase stats:")
     print(get_database_stats())

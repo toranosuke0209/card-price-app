@@ -7,11 +7,14 @@
 - 2026/01/27: DB参照方式に変更（スクレイピング廃止）
 - 旧実装は main_old.py に保存
 """
+import secrets
 from pathlib import Path
 from urllib.parse import unquote
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Depends, HTTPException, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, RedirectResponse
+from pydantic import BaseModel
+from typing import Optional
 
 # キーワードファイルのパス
 KEYWORDS_FILE = Path(__file__).parent / "keywords.txt"
@@ -51,6 +54,7 @@ from database import (
     init_database,
     init_shops,
     migrate_v2,
+    migrate_v3_auth,
     get_all_shops,
     get_shop_by_name,
     get_latest_prices_by_keyword,
@@ -64,7 +68,39 @@ from database import (
     record_click,
     add_to_fetch_queue,
     get_recent_batch_logs,
+    # 認証関連
+    create_user,
+    get_user_by_username,
+    get_user_by_email,
+    # お気に入り関連
+    add_favorite,
+    remove_favorite,
+    get_user_favorites,
+    get_user_favorite_ids,
+    # 管理者関連
+    create_admin_invite,
+    get_admin_invite,
+    use_admin_invite,
+    get_all_admin_invites,
+    get_admin_stats,
+    get_card_by_id,
+    get_or_create_card_v2,
+    update_popular_cards,
 )
+
+from auth import (
+    get_password_hash,
+    create_access_token,
+    authenticate_user,
+    get_current_user,
+    get_current_user_required,
+    require_admin,
+    UserCreate,
+    AdminRegister,
+    UserLogin,
+    Token,
+)
+from models import User
 
 app = FastAPI(title="カード価格比較API")
 
@@ -78,6 +114,7 @@ async def startup():
     """アプリ起動時にDB初期化"""
     init_database()
     migrate_v2()  # v2マイグレーション実行
+    migrate_v3_auth()  # v3認証マイグレーション実行
     init_shops()
 
 
@@ -85,6 +122,18 @@ async def startup():
 async def root():
     """フロントエンドのindex.htmlを返す"""
     return FileResponse(frontend_path / "index.html")
+
+
+@app.get("/login")
+async def login_page():
+    """ログインページを返す"""
+    return FileResponse(frontend_path / "login.html")
+
+
+@app.get("/admin")
+async def admin_page():
+    """管理者ページを返す"""
+    return FileResponse(frontend_path / "admin.html")
 
 
 @app.get("/api/search")
@@ -237,6 +286,317 @@ async def redirect_to_shop(
     # affiliate_url = convert_to_affiliate(decoded_url, site)
 
     return RedirectResponse(url=decoded_url, status_code=302)
+
+
+# =============================================================================
+# 認証API
+# =============================================================================
+
+@app.post("/api/auth/register", response_model=Token)
+async def register(user_data: UserCreate):
+    """
+    ユーザー登録
+    """
+    # バリデーション
+    if len(user_data.username) < 3:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ユーザー名は3文字以上である必要があります"
+        )
+    if len(user_data.password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="パスワードは6文字以上である必要があります"
+        )
+    if "@" not in user_data.email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="有効なメールアドレスを入力してください"
+        )
+
+    # 重複チェック
+    if get_user_by_username(user_data.username):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="このユーザー名は既に使用されています"
+        )
+    if get_user_by_email(user_data.email):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="このメールアドレスは既に使用されています"
+        )
+
+    # ユーザー作成
+    password_hash = get_password_hash(user_data.password)
+    user = create_user(
+        username=user_data.username,
+        email=user_data.email,
+        password_hash=password_hash,
+        role='user'
+    )
+
+    # トークン発行
+    access_token = create_access_token(
+        data={"sub": user.id, "username": user.username}
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+@app.post("/api/auth/login", response_model=Token)
+async def login(login_data: UserLogin):
+    """
+    ログイン（JWT発行）
+    """
+    user = authenticate_user(login_data.username, login_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="ユーザー名またはパスワードが正しくありません",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    access_token = create_access_token(
+        data={"sub": user.id, "username": user.username}
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+@app.get("/api/auth/me")
+async def get_me(current_user: User = Depends(get_current_user_required)):
+    """
+    現在のユーザー情報を取得
+    """
+    return current_user.to_dict()
+
+
+@app.post("/api/auth/admin-register", response_model=Token)
+async def admin_register(admin_data: AdminRegister):
+    """
+    管理者登録（招待コード必須）
+    """
+    # バリデーション
+    if len(admin_data.username) < 3:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ユーザー名は3文字以上である必要があります"
+        )
+    if len(admin_data.password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="パスワードは6文字以上である必要があります"
+        )
+
+    # 招待コードチェック
+    invite = get_admin_invite(admin_data.invite_code)
+    if not invite:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="無効な招待コードです"
+        )
+    if invite.used_by is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="この招待コードは既に使用されています"
+        )
+
+    # 重複チェック
+    if get_user_by_username(admin_data.username):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="このユーザー名は既に使用されています"
+        )
+    if get_user_by_email(admin_data.email):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="このメールアドレスは既に使用されています"
+        )
+
+    # 管理者ユーザー作成
+    password_hash = get_password_hash(admin_data.password)
+    user = create_user(
+        username=admin_data.username,
+        email=admin_data.email,
+        password_hash=password_hash,
+        role='admin'
+    )
+
+    # 招待コードを使用済みに
+    use_admin_invite(admin_data.invite_code, user.id)
+
+    # トークン発行
+    access_token = create_access_token(
+        data={"sub": user.id, "username": user.username}
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+# =============================================================================
+# お気に入りAPI
+# =============================================================================
+
+class FavoriteRequest(BaseModel):
+    card_id: int
+
+
+@app.get("/api/favorites")
+async def get_favorites(current_user: User = Depends(get_current_user_required)):
+    """
+    お気に入り一覧を取得
+    """
+    favorites = get_user_favorites(current_user.id)
+    return {"favorites": favorites}
+
+
+@app.get("/api/favorites/ids")
+async def get_favorite_ids(current_user: User = Depends(get_current_user_required)):
+    """
+    お気に入りカードIDリストを取得（軽量API）
+    """
+    ids = get_user_favorite_ids(current_user.id)
+    return {"card_ids": ids}
+
+
+@app.post("/api/favorites")
+async def add_favorite_card(
+    request: FavoriteRequest,
+    current_user: User = Depends(get_current_user_required)
+):
+    """
+    お気に入りに追加
+    """
+    # カード存在チェック
+    card = get_card_by_id(request.card_id)
+    if not card:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="カードが見つかりません"
+        )
+
+    favorite = add_favorite(current_user.id, request.card_id)
+    if not favorite:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="既にお気に入りに登録されています"
+        )
+
+    return {"message": "お気に入りに追加しました", "card_id": request.card_id}
+
+
+@app.delete("/api/favorites/{card_id}")
+async def remove_favorite_card(
+    card_id: int,
+    current_user: User = Depends(get_current_user_required)
+):
+    """
+    お気に入りから削除
+    """
+    success = remove_favorite(current_user.id, card_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="お気に入りに登録されていません"
+        )
+
+    return {"message": "お気に入りから削除しました", "card_id": card_id}
+
+
+# =============================================================================
+# 管理者API
+# =============================================================================
+
+class CardCreate(BaseModel):
+    name: str
+    card_no: Optional[str] = None
+
+
+@app.get("/api/admin/stats")
+async def get_admin_statistics(admin_user: User = Depends(require_admin)):
+    """
+    管理者用統計情報を取得
+    """
+    stats = get_admin_stats()
+    return {"stats": stats}
+
+
+@app.post("/api/admin/cards")
+async def create_card(
+    card_data: CardCreate,
+    admin_user: User = Depends(require_admin)
+):
+    """
+    カードを手動登録
+    """
+    if len(card_data.name) < 2:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="カード名は2文字以上である必要があります"
+        )
+
+    card = get_or_create_card_v2(
+        name=card_data.name,
+        card_no=card_data.card_no
+    )
+    return {"message": "カードを登録しました", "card": card.to_dict()}
+
+
+@app.post("/api/admin/cards/{card_id}/popular")
+async def toggle_popular(
+    card_id: int,
+    admin_user: User = Depends(require_admin)
+):
+    """
+    人気カードフラグを切り替え
+    """
+    from database import get_connection
+    card = get_card_by_id(card_id)
+    if not card:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="カードが見つかりません"
+        )
+
+    new_status = 0 if card.is_popular else 1
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE cards SET is_popular = ? WHERE id = ?",
+            (new_status, card_id)
+        )
+        conn.commit()
+
+    return {
+        "message": "人気カードを更新しました",
+        "card_id": card_id,
+        "is_popular": new_status
+    }
+
+
+@app.post("/api/admin/invites")
+async def create_invite(admin_user: User = Depends(require_admin)):
+    """
+    招待コードを生成
+    """
+    code = secrets.token_urlsafe(16)
+    invite = create_admin_invite(code, admin_user.id)
+    return {"message": "招待コードを生成しました", "invite": invite.to_dict()}
+
+
+@app.get("/api/admin/invites")
+async def list_invites(admin_user: User = Depends(require_admin)):
+    """
+    招待コード一覧を取得
+    """
+    invites = get_all_admin_invites()
+    return {"invites": [inv.to_dict() for inv in invites]}
+
+
+@app.post("/api/admin/update-popular")
+async def run_update_popular(admin_user: User = Depends(require_admin)):
+    """
+    人気カードフラグを自動更新
+    """
+    updated = update_popular_cards()
+    return {"message": f"{updated}件のカードを人気カードに更新しました"}
 
 
 if __name__ == "__main__":

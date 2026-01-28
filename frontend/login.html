@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ログイン - カード価格比較</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><a href="/" class="header-link">カード価格比較</a></h1>
+            <p class="subtitle">ログイン / 新規登録</p>
+        </header>
+
+        <div class="auth-container">
+            <!-- タブ切り替え -->
+            <div class="auth-tabs">
+                <button class="auth-tab active" data-tab="login">ログイン</button>
+                <button class="auth-tab" data-tab="register">新規登録</button>
+                <button class="auth-tab" data-tab="admin-register">管理者登録</button>
+            </div>
+
+            <!-- ログインフォーム -->
+            <div class="auth-form active" id="login-form">
+                <form onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label for="login-username">ユーザー名</label>
+                        <input type="text" id="login-username" required autocomplete="username">
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">パスワード</label>
+                        <input type="password" id="login-password" required autocomplete="current-password">
+                    </div>
+                    <div class="form-error" id="login-error"></div>
+                    <button type="submit" class="auth-submit">ログイン</button>
+                </form>
+            </div>
+
+            <!-- 新規登録フォーム -->
+            <div class="auth-form" id="register-form">
+                <form onsubmit="handleRegister(event)">
+                    <div class="form-group">
+                        <label for="register-username">ユーザー名（3文字以上）</label>
+                        <input type="text" id="register-username" required minlength="3" autocomplete="username">
+                    </div>
+                    <div class="form-group">
+                        <label for="register-email">メールアドレス</label>
+                        <input type="email" id="register-email" required autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="register-password">パスワード（6文字以上）</label>
+                        <input type="password" id="register-password" required minlength="6" autocomplete="new-password">
+                    </div>
+                    <div class="form-group">
+                        <label for="register-password-confirm">パスワード（確認）</label>
+                        <input type="password" id="register-password-confirm" required minlength="6" autocomplete="new-password">
+                    </div>
+                    <div class="form-error" id="register-error"></div>
+                    <button type="submit" class="auth-submit">登録</button>
+                </form>
+                <p class="auth-note">登録すると、お気に入りカードを保存できるようになります。</p>
+            </div>
+
+            <!-- 管理者登録フォーム -->
+            <div class="auth-form" id="admin-register-form">
+                <form onsubmit="handleAdminRegister(event)">
+                    <div class="form-group">
+                        <label for="admin-invite-code">招待コード（必須）</label>
+                        <input type="text" id="admin-invite-code" required placeholder="招待コードを入力">
+                    </div>
+                    <div class="form-group">
+                        <label for="admin-username">ユーザー名（3文字以上）</label>
+                        <input type="text" id="admin-username" required minlength="3" autocomplete="username">
+                    </div>
+                    <div class="form-group">
+                        <label for="admin-email">メールアドレス</label>
+                        <input type="email" id="admin-email" required autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="admin-password">パスワード（6文字以上）</label>
+                        <input type="password" id="admin-password" required minlength="6" autocomplete="new-password">
+                    </div>
+                    <div class="form-group">
+                        <label for="admin-password-confirm">パスワード（確認）</label>
+                        <input type="password" id="admin-password-confirm" required minlength="6" autocomplete="new-password">
+                    </div>
+                    <div class="form-error" id="admin-error"></div>
+                    <button type="submit" class="auth-submit">管理者として登録</button>
+                </form>
+                <p class="auth-note">管理者として登録するには、既存の管理者から招待コードを受け取る必要があります。</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/auth.js"></script>
+    <script>
+        // 既にログイン済みならホームにリダイレクト
+        if (Auth.isLoggedIn()) {
+            window.location.href = '/';
+        }
+
+        // タブ切り替え
+        document.querySelectorAll('.auth-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                // タブのアクティブ状態を切り替え
+                document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+
+                // フォームの表示を切り替え
+                document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
+                document.getElementById(`${tab.dataset.tab}-form`).classList.add('active');
+
+                // エラーをクリア
+                document.querySelectorAll('.form-error').forEach(e => e.textContent = '');
+            });
+        });
+
+        // ログイン処理
+        async function handleLogin(event) {
+            event.preventDefault();
+            const errorEl = document.getElementById('login-error');
+            errorEl.textContent = '';
+
+            const username = document.getElementById('login-username').value;
+            const password = document.getElementById('login-password').value;
+
+            try {
+                await Auth.login(username, password);
+                window.location.href = '/';
+            } catch (e) {
+                errorEl.textContent = e.message;
+            }
+        }
+
+        // 新規登録処理
+        async function handleRegister(event) {
+            event.preventDefault();
+            const errorEl = document.getElementById('register-error');
+            errorEl.textContent = '';
+
+            const username = document.getElementById('register-username').value;
+            const email = document.getElementById('register-email').value;
+            const password = document.getElementById('register-password').value;
+            const passwordConfirm = document.getElementById('register-password-confirm').value;
+
+            if (password !== passwordConfirm) {
+                errorEl.textContent = 'パスワードが一致しません';
+                return;
+            }
+
+            try {
+                await Auth.register(username, email, password);
+                window.location.href = '/';
+            } catch (e) {
+                errorEl.textContent = e.message;
+            }
+        }
+
+        // 管理者登録処理
+        async function handleAdminRegister(event) {
+            event.preventDefault();
+            const errorEl = document.getElementById('admin-error');
+            errorEl.textContent = '';
+
+            const inviteCode = document.getElementById('admin-invite-code').value;
+            const username = document.getElementById('admin-username').value;
+            const email = document.getElementById('admin-email').value;
+            const password = document.getElementById('admin-password').value;
+            const passwordConfirm = document.getElementById('admin-password-confirm').value;
+
+            if (password !== passwordConfirm) {
+                errorEl.textContent = 'パスワードが一致しません';
+                return;
+            }
+
+            try {
+                await Auth.adminRegister(username, email, password, inviteCode);
+                window.location.href = '/admin';
+            } catch (e) {
+                errorEl.textContent = e.message;
+            }
+        }
+    </script>
+</body>
+</html>

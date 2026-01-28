@@ -10,9 +10,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const homeEl = document.getElementById('home');
 
     let allProducts = [];
+    let favoriteCardIds = [];
+
+    // お気に入りIDを読み込み（ログイン時のみ）
+    loadFavoriteIds();
 
     // ホーム画面データを読み込み
     loadHomeData();
+
+    // お気に入りIDを読み込み
+    async function loadFavoriteIds() {
+        if (typeof Favorites !== 'undefined' && Auth.isLoggedIn()) {
+            favoriteCardIds = await Favorites.getIds();
+        }
+    }
 
     // 検索実行
     async function search() {
@@ -125,6 +136,19 @@ document.addEventListener('DOMContentLoaded', () => {
         // リダイレクトAPI経由のURL（クリック計測用）
         const redirectUrl = buildRedirectUrl(product.url, product.site, product.name);
 
+        // お気に入りボタン（ログイン時のみ、card_idがある場合のみ）
+        let favoriteBtn = '';
+        if (typeof Auth !== 'undefined' && Auth.isLoggedIn() && product.card_id) {
+            const isFav = favoriteCardIds.includes(product.card_id);
+            favoriteBtn = `
+                <button class="favorite-btn ${isFav ? 'active' : ''}"
+                        onclick="toggleFavorite(${product.card_id}, this)"
+                        title="${isFav ? 'お気に入りから削除' : 'お気に入りに追加'}">
+                    ${isFav ? '&#9733;' : '&#9734;'}
+                </button>
+            `;
+        }
+
         return `
             <div class="product-card">
                 ${imageHtml}
@@ -136,6 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div class="product-price">${escapeHtml(product.price_text)}</div>
                 <span class="product-stock ${stockClass}">${escapeHtml(product.stock_text)}</span>
+                ${favoriteBtn}
             </div>
         `;
     }
@@ -334,6 +359,30 @@ document.addEventListener('DOMContentLoaded', () => {
     window.searchCard = function(cardName) {
         keywordInput.value = cardName;
         search();
+    };
+
+    // お気に入り切り替え（グローバル関数）
+    window.toggleFavorite = async function(cardId, btnEl) {
+        if (typeof Favorites === 'undefined') return;
+
+        try {
+            const isFav = favoriteCardIds.includes(cardId);
+            if (isFav) {
+                await Favorites.remove(cardId);
+                favoriteCardIds = favoriteCardIds.filter(id => id !== cardId);
+                btnEl.classList.remove('active');
+                btnEl.innerHTML = '&#9734;';
+                btnEl.title = 'お気に入りに追加';
+            } else {
+                await Favorites.add(cardId);
+                favoriteCardIds.push(cardId);
+                btnEl.classList.add('active');
+                btnEl.innerHTML = '&#9733;';
+                btnEl.title = 'お気に入りから削除';
+            }
+        } catch (e) {
+            alert(e.message);
+        }
     };
 
     // イベントリスナー

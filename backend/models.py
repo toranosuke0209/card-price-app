@@ -57,6 +57,7 @@ class Price:
     def to_dict(self) -> dict:
         """既存APIレスポンス形式に変換"""
         return {
+            "card_id": self.card_id,
             "site": self.shop_name or "",
             "name": self.card_name or "",
             "price": self.price,
@@ -117,3 +118,60 @@ class FetchQueue:
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+
+@dataclass
+class User:
+    """ユーザー情報"""
+    id: int
+    username: str
+    email: str
+    password_hash: str
+    role: str = 'user'  # 'user' / 'admin'
+    is_active: int = 1
+    created_at: Optional[datetime] = None
+
+    def to_dict(self) -> dict:
+        """パスワードを除いた辞書を返す"""
+        return {
+            "id": self.id,
+            "username": self.username,
+            "email": self.email,
+            "role": self.role,
+            "is_active": self.is_active,
+            "created_at": str(self.created_at) if self.created_at else None,
+        }
+
+
+@dataclass
+class Favorite:
+    """お気に入り"""
+    id: int
+    user_id: int
+    card_id: int
+    created_at: Optional[datetime] = None
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
+class AdminInvite:
+    """管理者招待コード"""
+    id: int
+    code: str
+    created_by: Optional[int] = None
+    used_by: Optional[int] = None
+    created_at: Optional[datetime] = None
+    used_at: Optional[datetime] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "code": self.code,
+            "created_by": self.created_by,
+            "used_by": self.used_by,
+            "created_at": str(self.created_at) if self.created_at else None,
+            "used_at": str(self.used_at) if self.used_at else None,
+            "is_used": self.used_by is not None,
+        }

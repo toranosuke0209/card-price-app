@@ -22,6 +22,21 @@ header {
     margin-bottom: 30px;
 }
 
+.header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header-link {
+    color: #2c3e50;
+    text-decoration: none;
+}
+
+.header-link:hover {
+    color: #3498db;
+}
+
 header h1 {
     font-size: 2rem;
     color: #2c3e50;
@@ -482,4 +497,450 @@ header h1 {
 
 .batch-notification .batch-shop-stats span {
     display: block;
+}
+
+/* =============================================================================
+   ユーザーメニュー
+   ============================================================================= */
+
+#user-menu {
+    position: relative;
+}
+
+.login-link {
+    display: inline-block;
+    padding: 8px 16px;
+    background: #3498db;
+    color: white;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    transition: background 0.2s;
+}
+
+.login-link:hover {
+    background: #2980b9;
+}
+
+.user-menu-dropdown {
+    position: relative;
+}
+
+.user-menu-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: white;
+    border: 2px solid #ddd;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: border-color 0.2s;
+}
+
+.user-menu-btn:hover {
+    border-color: #3498db;
+}
+
+.user-icon {
+    font-size: 1.2rem;
+}
+
+.user-name {
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-badge {
+    padding: 2px 6px;
+    background: #e74c3c;
+    color: white;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: bold;
+}
+
+.user-menu-content {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 5px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    min-width: 150px;
+    z-index: 100;
+    overflow: hidden;
+}
+
+.user-menu-content.show {
+    display: block;
+}
+
+.user-menu-content .menu-item {
+    display: block;
+    width: 100%;
+    padding: 12px 16px;
+    background: none;
+    border: none;
+    text-align: left;
+    font-size: 0.9rem;
+    color: #333;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.2s;
+}
+
+.user-menu-content .menu-item:hover {
+    background: #f5f5f5;
+}
+
+.user-menu-content .logout-btn {
+    color: #e74c3c;
+    border-top: 1px solid #eee;
+}
+
+/* =============================================================================
+   認証フォーム
+   ============================================================================= */
+
+.auth-container {
+    max-width: 400px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+.auth-tabs {
+    display: flex;
+    border-bottom: 2px solid #eee;
+}
+
+.auth-tab {
+    flex: 1;
+    padding: 15px;
+    background: none;
+    border: none;
+    font-size: 0.9rem;
+    color: #666;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.auth-tab:hover {
+    background: #f5f5f5;
+}
+
+.auth-tab.active {
+    color: #3498db;
+    font-weight: bold;
+    border-bottom: 2px solid #3498db;
+    margin-bottom: -2px;
+}
+
+.auth-form {
+    display: none;
+    padding: 25px;
+}
+
+.auth-form.active {
+    display: block;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 0.9rem;
+    color: #555;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 12px;
+    font-size: 1rem;
+    border: 2px solid #ddd;
+    border-radius: 6px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.form-group input:focus {
+    border-color: #3498db;
+}
+
+.form-error {
+    padding: 10px;
+    margin-bottom: 15px;
+    background: #fee;
+    border: 1px solid #fcc;
+    border-radius: 6px;
+    color: #c00;
+    font-size: 0.9rem;
+}
+
+.form-error:empty {
+    display: none;
+}
+
+.form-success {
+    padding: 10px;
+    margin-bottom: 15px;
+    background: #efe;
+    border: 1px solid #cfc;
+    border-radius: 6px;
+    color: #080;
+    font-size: 0.9rem;
+}
+
+.form-success:empty {
+    display: none;
+}
+
+.auth-submit {
+    width: 100%;
+    padding: 14px;
+    font-size: 1rem;
+    font-weight: bold;
+    background: #3498db;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.auth-submit:hover {
+    background: #2980b9;
+}
+
+.auth-note {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #eee;
+    font-size: 0.85rem;
+    color: #666;
+    text-align: center;
+}
+
+/* =============================================================================
+   管理画面
+   ============================================================================= */
+
+.admin-content {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.admin-section {
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.admin-section h2 {
+    font-size: 1.2rem;
+    color: #2c3e50;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #3498db;
+}
+
+.section-desc {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 15px;
+}
+
+.admin-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 15px;
+}
+
+.stat-card {
+    text-align: center;
+    padding: 20px 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.stat-value {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: #3498db;
+}
+
+.stat-label {
+    font-size: 0.85rem;
+    color: #666;
+    margin-top: 5px;
+}
+
+.admin-form .form-row {
+    display: flex;
+    gap: 15px;
+}
+
+.admin-form .form-row .form-group {
+    flex: 1;
+}
+
+.admin-btn {
+    padding: 12px 24px;
+    font-size: 0.95rem;
+    font-weight: bold;
+    background: #3498db;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.admin-btn:hover {
+    background: #2980b9;
+}
+
+.invite-list {
+    margin-top: 20px;
+}
+
+.invite-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 15px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    margin-bottom: 10px;
+}
+
+.invite-item.used {
+    opacity: 0.6;
+}
+
+.invite-code {
+    font-family: monospace;
+    font-size: 0.9rem;
+    background: white;
+    padding: 6px 10px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+}
+
+.invite-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.status-used {
+    color: #999;
+    font-size: 0.85rem;
+}
+
+.status-unused {
+    color: #27ae60;
+    font-size: 0.85rem;
+    font-weight: bold;
+}
+
+.copy-btn {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    background: #27ae60;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.copy-btn:hover {
+    background: #219a52;
+}
+
+.invite-date {
+    font-size: 0.8rem;
+    color: #999;
+}
+
+.no-data {
+    text-align: center;
+    color: #999;
+    padding: 20px;
+}
+
+.not-admin {
+    text-align: center;
+    padding: 40px;
+    background: white;
+    border-radius: 12px;
+}
+
+.back-link {
+    display: inline-block;
+    margin-top: 15px;
+    color: #3498db;
+}
+
+/* =============================================================================
+   お気に入りボタン
+   ============================================================================= */
+
+.favorite-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: #ddd;
+    cursor: pointer;
+    transition: color 0.2s, transform 0.2s;
+    padding: 5px;
+}
+
+.favorite-btn:hover {
+    color: #f39c12;
+    transform: scale(1.1);
+}
+
+.favorite-btn.active {
+    color: #f39c12;
+}
+
+/* レスポンシブ調整 */
+@media (max-width: 768px) {
+    .header-top {
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .auth-tabs {
+        flex-wrap: wrap;
+    }
+
+    .auth-tab {
+        flex: 1 1 100%;
+    }
+
+    .admin-form .form-row {
+        flex-direction: column;
+    }
+
+    .invite-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
 }
