@@ -1,0 +1,2 @@
+PEM_PATH=C:\path\to\your-key.pem
+EC2_HOST=ubuntu@your-ec2-ip

@@ -1,0 +1,12 @@
+# Config with secrets
+config.txt
+
+# Output files
+output/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# PEM keys
+*.pem

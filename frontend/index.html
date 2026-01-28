@@ -32,6 +32,14 @@
                     <option value="site">サイト別</option>
                 </select>
             </label>
+            <label>
+                在庫:
+                <select id="stock-filter">
+                    <option value="all">すべて</option>
+                    <option value="in-stock">在庫あり</option>
+                    <option value="out-of-stock">売り切れ</option>
+                </select>
+            </label>
             <span id="result-count"></span>
         </div>
 
@@ -47,6 +55,9 @@
         <!-- ホーム画面セクション（検索前に表示） -->
         <div id="home" class="home-section">
             <div class="home-stats" id="home-stats"></div>
+
+            <!-- バッチ実行通知 -->
+            <div id="batch-notification" class="batch-notification hidden"></div>
 
             <div class="home-grid">
                 <div class="home-card">

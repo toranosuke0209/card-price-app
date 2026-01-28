@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Optional
 from contextlib import contextmanager
 
-from models import Shop, Card, Price, Click, SearchLog
+from models import Shop, Card, Price, Click, SearchLog, BatchProgress, FetchQueue
 
 # DBファイルパス
 DB_PATH = Path(__file__).parent / "card_price.db"
@@ -116,6 +116,86 @@ def init_database():
 
         conn.commit()
         print(f"Database initialized: {DB_PATH}")
+
+
+def migrate_v2():
+    """v2スキーマへのマイグレーション（差分実装用）"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # cardsテーブルへのカラム追加
+        migrations = [
+            "ALTER TABLE cards ADD COLUMN card_no TEXT",
+            "ALTER TABLE cards ADD COLUMN source_shop_id INTEGER",
+            "ALTER TABLE cards ADD COLUMN detail_url TEXT",
+            "ALTER TABLE cards ADD COLUMN is_popular INTEGER DEFAULT 0",
+            "ALTER TABLE cards ADD COLUMN last_price_fetch_at TEXT",
+        ]
+
+        for sql in migrations:
+            try:
+                cursor.execute(sql)
+                print(f"Migration applied: {sql[:50]}...")
+            except sqlite3.OperationalError as e:
+                if "duplicate column" in str(e).lower():
+                    pass  # カラム既存時はスキップ
+                else:
+                    print(f"Migration skipped: {e}")
+
+        # バッチ進捗管理テーブル
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS batch_progress (
+                id INTEGER PRIMARY KEY,
+                shop_id INTEGER NOT NULL,
+                kana_type TEXT NOT NULL,
+                kana TEXT NOT NULL,
+                current_page INTEGER DEFAULT 1,
+                total_pages INTEGER,
+                status TEXT DEFAULT 'pending',
+                last_fetched_at TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(shop_id, kana_type, kana)
+            )
+        """)
+
+        # 取得キューテーブル
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS fetch_queue (
+                id INTEGER PRIMARY KEY,
+                card_name TEXT NOT NULL,
+                source TEXT DEFAULT 'search',
+                priority INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'pending',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                processed_at TEXT
+            )
+        """)
+
+        # 追加インデックス
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_cards_popular ON cards(is_popular)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_cards_last_fetch ON cards(last_price_fetch_at)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_fetch_queue_status ON fetch_queue(status, priority DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_batch_progress_status ON batch_progress(status)")
+
+        # バッチ実行ログテーブル
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS batch_logs (
+                id INTEGER PRIMARY KEY,
+                batch_type TEXT NOT NULL,
+                shop_name TEXT,
+                status TEXT NOT NULL,
+                pages_processed INTEGER DEFAULT 0,
+                cards_total INTEGER DEFAULT 0,
+                cards_new INTEGER DEFAULT 0,
+                message TEXT,
+                started_at TEXT,
+                finished_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_batch_logs_finished ON batch_logs(finished_at DESC)")
+
+        conn.commit()
+        print("Migration v2 completed")
 
 
 def init_shops():
@@ -496,12 +576,348 @@ def get_database_stats() -> dict:
 
 
 # =============================================================================
+# バッチ進捗管理
+# =============================================================================
+
+HIRAGANA = list('あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん')
+KATAKANA = list('アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン')
+
+
+def init_batch_progress(shop_id: int):
+    """指定ショップのバッチ進捗を初期化"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        for kana in HIRAGANA:
+            cursor.execute("""
+                INSERT OR IGNORE INTO batch_progress (shop_id, kana_type, kana)
+                VALUES (?, 'hiragana', ?)
+            """, (shop_id, kana))
+
+        for kana in KATAKANA:
+            cursor.execute("""
+                INSERT OR IGNORE INTO batch_progress (shop_id, kana_type, kana)
+                VALUES (?, 'katakana', ?)
+            """, (shop_id, kana))
+
+        conn.commit()
+
+
+def get_next_batch_target(shop_id: int) -> Optional[BatchProgress]:
+    """次に処理すべきバッチ対象を取得（ひらがな→カタカナ順）"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # 処理中のものがあれば優先
+        cursor.execute("""
+            SELECT * FROM batch_progress
+            WHERE shop_id = ? AND status = 'in_progress'
+            LIMIT 1
+        """, (shop_id,))
+        row = cursor.fetchone()
+        if row:
+            return BatchProgress(**dict(row))
+
+        # ひらがな→カタカナの順で未完了を取得
+        cursor.execute("""
+            SELECT * FROM batch_progress
+            WHERE shop_id = ? AND status = 'pending'
+            ORDER BY
+                CASE kana_type WHEN 'hiragana' THEN 0 ELSE 1 END,
+                id
+            LIMIT 1
+        """, (shop_id,))
+        row = cursor.fetchone()
+        return BatchProgress(**dict(row)) if row else None
+
+
+def update_batch_progress(progress_id: int, current_page: int,
+                          total_pages: Optional[int] = None,
+                          status: str = 'in_progress'):
+    """バッチ進捗を更新"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE batch_progress
+            SET current_page = ?, total_pages = ?, status = ?,
+                last_fetched_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (current_page, total_pages, status, progress_id))
+        conn.commit()
+
+
+def reset_batch_progress(shop_id: int):
+    """バッチ進捗をリセット（再巡回用）"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE batch_progress
+            SET current_page = 1, status = 'pending', last_fetched_at = NULL
+            WHERE shop_id = ?
+        """, (shop_id,))
+        conn.commit()
+
+
+def get_batch_stats(shop_id: int) -> dict:
+    """バッチ進捗統計"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT
+                status,
+                COUNT(*) as count
+            FROM batch_progress
+            WHERE shop_id = ?
+            GROUP BY status
+        """, (shop_id,))
+        rows = cursor.fetchall()
+        stats = {row["status"]: row["count"] for row in rows}
+        return {
+            "pending": stats.get("pending", 0),
+            "in_progress": stats.get("in_progress", 0),
+            "completed": stats.get("completed", 0),
+        }
+
+
+# =============================================================================
+# 取得キュー操作
+# =============================================================================
+
+def add_to_fetch_queue(card_name: str, source: str = 'search', priority: int = 0) -> Optional[int]:
+    """取得キューに追加（重複チェック付き）"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # 同じカード名でpending/processingがあればスキップ
+        cursor.execute("""
+            SELECT id FROM fetch_queue
+            WHERE card_name = ? AND status IN ('pending', 'processing')
+        """, (card_name,))
+        if cursor.fetchone():
+            return None
+
+        cursor.execute("""
+            INSERT INTO fetch_queue (card_name, source, priority)
+            VALUES (?, ?, ?)
+        """, (card_name, source, priority))
+        conn.commit()
+        return cursor.lastrowid
+
+
+def get_pending_queue_items(limit: int = 10) -> list[FetchQueue]:
+    """処理待ちキューを取得（優先度順）"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM fetch_queue
+            WHERE status = 'pending'
+            ORDER BY priority DESC, created_at ASC
+            LIMIT ?
+        """, (limit,))
+        rows = cursor.fetchall()
+        return [FetchQueue(**dict(row)) for row in rows]
+
+
+def update_queue_status(queue_id: int, status: str):
+    """キューステータスを更新"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        if status == 'done':
+            cursor.execute("""
+                UPDATE fetch_queue
+                SET status = ?, processed_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (status, queue_id))
+        else:
+            cursor.execute("""
+                UPDATE fetch_queue
+                SET status = ?
+                WHERE id = ?
+            """, (status, queue_id))
+        conn.commit()
+
+
+def cleanup_old_queue(days: int = 7):
+    """古いキューを削除"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            DELETE FROM fetch_queue
+            WHERE status = 'done' AND processed_at < datetime('now', ? || ' days')
+        """, (f"-{days}",))
+        deleted = cursor.rowcount
+        conn.commit()
+        return deleted
+
+
+# =============================================================================
+# 人気カード操作
+# =============================================================================
+
+def update_popular_cards(search_threshold: int = 5, click_threshold: int = 3,
+                         days: int = 7, max_popular: int = 100):
+    """人気カードフラグを更新"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # 一旦全てリセット
+        cursor.execute("UPDATE cards SET is_popular = 0")
+
+        # 検索・クリック数が閾値以上のカードを人気に設定
+        cursor.execute("""
+            UPDATE cards SET is_popular = 1
+            WHERE id IN (
+                SELECT c.id
+                FROM cards c
+                LEFT JOIN search_logs sl ON sl.keyword = c.name
+                    AND sl.searched_at > datetime('now', ? || ' days')
+                LEFT JOIN clicks cl ON cl.card_id = c.id
+                    AND cl.clicked_at > datetime('now', ? || ' days')
+                GROUP BY c.id
+                HAVING COUNT(DISTINCT sl.id) >= ? OR COUNT(DISTINCT cl.id) >= ?
+                ORDER BY COUNT(DISTINCT sl.id) + COUNT(DISTINCT cl.id) DESC
+                LIMIT ?
+            )
+        """, (f"-{days}", f"-{days}", search_threshold, click_threshold, max_popular))
+
+        updated = cursor.rowcount
+        conn.commit()
+        print(f"Updated {updated} popular cards")
+        return updated
+
+
+def get_popular_cards() -> list[Card]:
+    """人気カード一覧を取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM cards WHERE is_popular = 1
+        """)
+        rows = cursor.fetchall()
+        return [Card(**dict(row)) for row in rows]
+
+
+def get_cards_needing_price_update(hours: int = 24, limit: int = 50) -> list[Card]:
+    """価格更新が必要なカードを取得（人気カード優先）"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM cards
+            WHERE is_popular = 1
+            AND (last_price_fetch_at IS NULL
+                 OR last_price_fetch_at < datetime('now', ? || ' hours'))
+            ORDER BY last_price_fetch_at ASC NULLS FIRST
+            LIMIT ?
+        """, (f"-{hours}", limit))
+        rows = cursor.fetchall()
+        return [Card(**dict(row)) for row in rows]
+
+
+def update_card_price_fetch_time(card_id: int):
+    """カードの価格取得時刻を更新"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE cards SET last_price_fetch_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (card_id,))
+        conn.commit()
+
+
+# =============================================================================
+# バッチログ操作
+# =============================================================================
+
+def save_batch_log(batch_type: str, shop_name: str, status: str,
+                   pages_processed: int = 0, cards_total: int = 0,
+                   cards_new: int = 0, message: str = None,
+                   started_at: str = None) -> int:
+    """バッチ実行ログを保存"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO batch_logs
+            (batch_type, shop_name, status, pages_processed, cards_total, cards_new, message, started_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (batch_type, shop_name, status, pages_processed, cards_total, cards_new, message, started_at))
+        conn.commit()
+        return cursor.lastrowid
+
+
+def get_recent_batch_logs(limit: int = 10) -> list[dict]:
+    """最近のバッチ実行ログを取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM batch_logs
+            ORDER BY finished_at DESC
+            LIMIT ?
+        """, (limit,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+
+def get_latest_crawl_result() -> dict | None:
+    """最新の巡回バッチ結果を取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM batch_logs
+            WHERE batch_type = 'crawl' AND status = 'success'
+            ORDER BY finished_at DESC
+            LIMIT 1
+        """)
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+# =============================================================================
+# カード登録（拡張版）
+# =============================================================================
+
+def get_or_create_card_v2(name: str, card_no: str = None,
+                          source_shop_id: int = None,
+                          detail_url: str = None) -> Card:
+    """カードを取得または作成（v2拡張版）"""
+    name_normalized = normalize_card_name(name)
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # 既存カード検索
+        cursor.execute("SELECT * FROM cards WHERE name = ?", (name,))
+        row = cursor.fetchone()
+
+        if row:
+            # 既存カードにdetail_urlがなければ更新
+            if detail_url and not row["detail_url"]:
+                cursor.execute("""
+                    UPDATE cards SET detail_url = ?, card_no = ?
+                    WHERE id = ?
+                """, (detail_url, card_no, row["id"]))
+                conn.commit()
+            return Card(**dict(row))
+
+        # 新規作成
+        cursor.execute("""
+            INSERT INTO cards (name, name_normalized, card_no, source_shop_id, detail_url)
+            VALUES (?, ?, ?, ?, ?)
+        """, (name, name_normalized, card_no, source_shop_id, detail_url))
+        conn.commit()
+
+        cursor.execute("SELECT * FROM cards WHERE id = ?", (cursor.lastrowid,))
+        row = cursor.fetchone()
+        return Card(**dict(row))
+
+
+# =============================================================================
 # 初期化実行
 # =============================================================================
 
 if __name__ == "__main__":
     # 直接実行時にDB初期化
     init_database()
+    migrate_v2()  # v2マイグレーション追加
     init_shops()
     print("\nDatabase stats:")
     print(get_database_stats())

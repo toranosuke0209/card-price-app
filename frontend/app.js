@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const keywordInput = document.getElementById('keyword');
     const searchBtn = document.getElementById('search-btn');
     const sortSelect = document.getElementById('sort-select');
+    const stockFilter = document.getElementById('stock-filter');
     const loadingEl = document.getElementById('loading');
     const errorEl = document.getElementById('error');
     const resultsEl = document.getElementById('results');
@@ -64,7 +65,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 商品を表示
     function renderProducts() {
-        const sortedProducts = sortProducts(allProducts, sortSelect.value);
+        // フィルター処理
+        const filteredProducts = filterProducts(allProducts, stockFilter ? stockFilter.value : 'all');
+        // ソート処理
+        const sortedProducts = sortProducts(filteredProducts, sortSelect.value);
 
         if (sortedProducts.length === 0) {
             resultsEl.innerHTML = '<p style="text-align:center;padding:20px;color:#666;">商品が見つかりませんでした</p>';
@@ -72,6 +76,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         resultsEl.innerHTML = sortedProducts.map(product => createProductCard(product)).join('');
+
+        // フィルター後の件数を表示
+        if (filteredProducts.length !== allProducts.length) {
+            resultCountEl.textContent = `${filteredProducts.length}件表示 / 全${allProducts.length}件`;
+        }
+    }
+
+    // フィルター処理
+    function filterProducts(products, filterType) {
+        switch (filterType) {
+            case 'in-stock':
+                return products.filter(p => p.stock > 0);
+            case 'out-of-stock':
+                return products.filter(p => p.stock === 0);
+            default:
+                return products;
+        }
     }
 
     // ソート処理
@@ -177,6 +198,9 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }
 
+        // バッチ実行通知
+        renderBatchNotification(data.batch_logs);
+
         // 最近更新
         renderHomeList('recently-updated', data.recently_updated, (item) => `
             <div class="home-item">
@@ -211,6 +235,68 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span class="home-item-clicks">${item.click_count} clicks</span>
             </div>
         `);
+    }
+
+    // バッチ実行通知を描画
+    function renderBatchNotification(batchLogs) {
+        const notificationEl = document.getElementById('batch-notification');
+        if (!notificationEl) return;
+
+        // 最新の成功ログを取得（24時間以内）
+        if (!batchLogs || batchLogs.length === 0) {
+            notificationEl.classList.add('hidden');
+            return;
+        }
+
+        // 24時間以内のログのみ表示
+        const now = new Date();
+        const recentLogs = batchLogs.filter(log => {
+            const logDate = new Date(log.finished_at);
+            const diffHours = (now - logDate) / (1000 * 60 * 60);
+            return diffHours < 24 && log.status === 'success';
+        });
+
+        if (recentLogs.length === 0) {
+            notificationEl.classList.add('hidden');
+            return;
+        }
+
+        // 各ショップの最新ログを取得
+        const shopLogs = {};
+        recentLogs.forEach(log => {
+            if (!shopLogs[log.shop_name]) {
+                shopLogs[log.shop_name] = log;
+            }
+        });
+
+        const formatTime = (dateStr) => {
+            const d = new Date(dateStr);
+            return d.toLocaleString('ja-JP', {
+                month: 'numeric',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        };
+
+        notificationEl.classList.remove('hidden');
+        notificationEl.classList.remove('error');
+
+        const logsHtml = Object.values(shopLogs).map(log => `
+            <div class="batch-shop-item">
+                <div class="batch-shop-name">${escapeHtml(log.shop_name)}</div>
+                <div class="batch-shop-stats">
+                    <span>${log.cards_total.toLocaleString()}件取得</span>
+                    <span>${log.cards_new.toLocaleString()}件新規</span>
+                    <span>${formatTime(log.finished_at)}</span>
+                </div>
+            </div>
+        `).join('');
+
+        notificationEl.innerHTML = `
+            <div class="batch-title">巡回完了</div>
+            <div class="batch-shops">${logsHtml}</div>
+        `;
     }
 
     // ホームリスト描画
@@ -264,4 +350,12 @@ document.addEventListener('DOMContentLoaded', () => {
             renderProducts();
         }
     });
+
+    if (stockFilter) {
+        stockFilter.addEventListener('change', () => {
+            if (allProducts.length > 0) {
+                renderProducts();
+            }
+        });
+    }
 });

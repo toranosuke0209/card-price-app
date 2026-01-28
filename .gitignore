@@ -31,6 +31,12 @@ Thumbs.db
 
 # Lock files
 .batch.lock
+*.lock
+
+# Secrets
+*.pem
+local/config.txt
+local/output/
 
 # Test files
 test_*.py

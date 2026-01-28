@@ -50,6 +50,7 @@ def add_keyword_if_new(keyword: str) -> bool:
 from database import (
     init_database,
     init_shops,
+    migrate_v2,
     get_all_shops,
     get_shop_by_name,
     get_latest_prices_by_keyword,
@@ -61,6 +62,8 @@ from database import (
     search_cards,
     record_search,
     record_click,
+    add_to_fetch_queue,
+    get_recent_batch_logs,
 )
 
 app = FastAPI(title="カード価格比較API")
@@ -74,6 +77,7 @@ app.mount("/static", StaticFiles(directory=frontend_path), name="static")
 async def startup():
     """アプリ起動時にDB初期化"""
     init_database()
+    migrate_v2()  # v2マイグレーション実行
     init_shops()
 
 
@@ -101,6 +105,8 @@ async def search(keyword: str = Query(..., min_length=1, description="検索キ�
     # 結果が少なければキーワードを自動追加（次回バッチで取得される）
     if len(prices) < 5:
         add_keyword_if_new(keyword)
+        # キューにも追加（batch_queue.pyで処理される）
+        add_to_fetch_queue(keyword, source='search', priority=0)
 
     # サイト別にグループ化（旧API互換形式）
     site_items = {}
@@ -150,6 +156,7 @@ async def get_home_data():
     - price_down: 値下がりしたカード
     - hot_cards: よくクリックされているカード
     - stats: DB統計情報
+    - batch_logs: 最近のバッチ実行結果
     """
     # 最近更新されたカード
     recently_updated = get_recently_updated(limit=10)
@@ -167,6 +174,9 @@ async def get_home_data():
     # DB統計
     stats = get_database_stats()
 
+    # 最近のバッチ実行結果
+    batch_logs = get_recent_batch_logs(limit=5)
+
     return {
         "recently_updated": recently_updated_list,
         "price_up": price_up,
@@ -176,7 +186,8 @@ async def get_home_data():
             "total_cards": stats["cards"],
             "total_prices": stats["prices"],
             "last_updated": stats["newest_price"],
-        }
+        },
+        "batch_logs": batch_logs,
     }
 
 

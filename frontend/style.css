@@ -395,3 +395,60 @@ header h1 {
         gap: 10px;
     }
 }
+
+/* バッチ実行通知 */
+.batch-notification {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 15px 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.batch-notification.hidden {
+    display: none;
+}
+
+.batch-notification .batch-title {
+    font-weight: bold;
+    font-size: 1.1rem;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.batch-notification .batch-title::before {
+    content: "\2714";
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 50%;
+    text-align: center;
+    line-height: 20px;
+    font-size: 12px;
+}
+
+.batch-notification .batch-details {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    font-size: 0.9rem;
+    opacity: 0.95;
+}
+
+.batch-notification .batch-detail-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.batch-notification .batch-detail-value {
+    font-weight: bold;
+}
+
+.batch-notification.error {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}

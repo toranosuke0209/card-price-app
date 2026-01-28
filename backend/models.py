@@ -26,6 +26,12 @@ class Card:
     name: str
     name_normalized: str
     first_seen_at: Optional[datetime] = None
+    # v2追加カラム
+    card_no: Optional[str] = None
+    source_shop_id: Optional[int] = None
+    detail_url: Optional[str] = None
+    is_popular: int = 0
+    last_price_fetch_at: Optional[datetime] = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -79,3 +85,35 @@ class SearchLog:
     keyword: str
     result_count: int = 0
     searched_at: Optional[datetime] = None
+
+
+@dataclass
+class BatchProgress:
+    """バッチ進捗管理"""
+    id: int
+    shop_id: int
+    kana_type: str  # 'hiragana' / 'katakana'
+    kana: str       # 'あ', 'い', ... 'ア', 'イ', ...
+    current_page: int = 1
+    total_pages: Optional[int] = None
+    status: str = 'pending'  # 'pending' / 'in_progress' / 'completed'
+    last_fetched_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
+class FetchQueue:
+    """取得キュー"""
+    id: int
+    card_name: str
+    source: str = 'search'  # 'search' / 'batch'
+    priority: int = 0       # 0:通常, 1:優先
+    status: str = 'pending' # 'pending' / 'processing' / 'done'
+    created_at: Optional[datetime] = None
+    processed_at: Optional[datetime] = None
+
+    def to_dict(self) -> dict:
+        return asdict(self)
