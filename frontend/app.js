@@ -125,12 +125,23 @@ document.addEventListener('DOMContentLoaded', () => {
         return sorted;
     }
 
+    // 画像URLを取得（ホビステはプロキシ経由）
+    function getImageUrl(imageUrl) {
+        if (!imageUrl) return null;
+        // ホビステの画像はプロキシ経由で取得（ホットリンク対策回避）
+        if (imageUrl.includes('hobbystation-single.jp')) {
+            return `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+        }
+        return imageUrl;
+    }
+
     // 商品カードHTML生成
     function createProductCard(product) {
         const siteClass = getSiteClass(product.site);
         const stockClass = product.stock > 0 ? 'in-stock' : 'out-of-stock';
-        const imageHtml = product.image_url
-            ? `<img src="${escapeHtml(product.image_url)}" alt="${escapeHtml(product.name)}" class="product-image" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="product-image-placeholder" style="display:none"></div>`
+        const proxyImageUrl = getImageUrl(product.image_url);
+        const imageHtml = proxyImageUrl
+            ? `<img src="${escapeHtml(proxyImageUrl)}" alt="${escapeHtml(product.name)}" class="product-image" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="product-image-placeholder" style="display:none"></div>`
             : '<div class="product-image-placeholder"></div>';
 
         // リダイレクトAPI経由のURL（クリック計測用）

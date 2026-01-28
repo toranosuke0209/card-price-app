@@ -12,8 +12,9 @@ from pathlib import Path
 from urllib.parse import unquote
 from fastapi import FastAPI, Query, Depends, HTTPException, status
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from pydantic import BaseModel
+import httpx
 from typing import Optional
 
 # キーワードファイルのパス
@@ -134,6 +135,40 @@ async def login_page():
 async def admin_page():
     """管理者ページを返す"""
     return FileResponse(frontend_path / "admin.html")
+
+
+@app.get("/api/image-proxy")
+async def image_proxy(url: str = Query(..., description="画像URL")):
+    """
+    外部サイトの画像をプロキシして返す
+    ホットリンク対策されているサイト（ホビステなど）の画像を表示するため
+    """
+    # 許可するドメインのみプロキシ
+    allowed_domains = [
+        "hobbystation-single.jp",
+        "www.hobbystation-single.jp",
+    ]
+
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    if parsed.netloc not in allowed_domains:
+        raise HTTPException(status_code=400, detail="Domain not allowed")
+
+    # リファラーを付けて画像を取得
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                url,
+                headers={"Referer": f"https://{parsed.netloc}/"},
+                timeout=10.0
+            )
+            if response.status_code != 200:
+                raise HTTPException(status_code=404, detail="Image not found")
+
+            content_type = response.headers.get("content-type", "image/jpeg")
+            return Response(content=response.content, media_type=content_type)
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="Failed to fetch image")
 
 
 @app.get("/api/search")
