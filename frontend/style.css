@@ -452,3 +452,34 @@ header h1 {
 .batch-notification.error {
     background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
 }
+
+.batch-notification .batch-shops {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.batch-notification .batch-shop-item {
+    background: rgba(255,255,255,0.15);
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+
+.batch-notification .batch-shop-name {
+    font-weight: bold;
+    font-size: 0.95rem;
+    margin-bottom: 5px;
+}
+
+.batch-notification .batch-shop-stats {
+    font-size: 0.8rem;
+    opacity: 0.9;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.batch-notification .batch-shop-stats span {
+    display: block;
+}
