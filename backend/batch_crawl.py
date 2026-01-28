@@ -865,10 +865,16 @@ class FullaheadCrawler(SeleniumScraper, BaseCrawler):
                 stock = 1  # 価格があれば在庫ありと仮定
                 stock_text = "在庫あり"
 
-            # 画像
-            img_elem = parent.select_one("span.itemImg img, img")
-            if img_elem:
-                image_url = img_elem.get("src", "")
+        # 画像 - 親要素ではなくリンク内または直接の親から取得
+        # （親要素だと複数商品の共通コンテナになり、最初の画像が返されてしまう）
+        img_elem = link.select_one("span.itemImg img, img")
+        if not img_elem and link.parent:
+            # リンクの直接の親から探す
+            img_elem = link.parent.select_one("img")
+        if img_elem:
+            image_url = img_elem.get("src", "")
+            if image_url and not image_url.startswith("http"):
+                image_url = urljoin(self.base_url, image_url)
 
         return {
             "name": name,
