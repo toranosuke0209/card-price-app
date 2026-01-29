@@ -834,43 +834,51 @@ class FullaheadCrawler(SeleniumScraper, BaseCrawler):
         if card_no_match:
             card_no = card_no_match.group(1)
 
-        # 親要素から価格と在庫を取得
-        parent = link.parent
-        for _ in range(3):
-            if parent and parent.name:
-                parent = parent.parent
+        # リンク内または直接の親から価格・在庫・画像を取得
+        # （3レベル上の親だと共通コンテナになり、最初の要素のデータが全カードに適用されてしまう）
+        item = link.parent if link.parent else link
 
         price = 0
         stock = 0
         stock_text = ""
         image_url = ""
 
-        if parent:
-            # 価格
-            price_elem = parent.select_one("span.itemPrice strong")
-            if price_elem:
-                price_text = price_elem.get_text(strip=True)
-                price_match = re.search(r'([\d,]+)', price_text)
-                if price_match:
-                    price = int(price_match.group(1).replace(",", ""))
+        # 価格 - リンク内 → 直接の親
+        price_elem = link.select_one("span.itemPrice strong")
+        if not price_elem:
+            price_elem = item.select_one("span.itemPrice strong")
+        if price_elem:
+            price_text = price_elem.get_text(strip=True)
+            price_match = re.search(r'([\d,]+)', price_text)
+            if price_match:
+                price = int(price_match.group(1).replace(",", ""))
 
-            # 在庫
-            stock_elem = parent.select_one("span.M_item-stock-smallstock, span.M_category-smallstock")
-            if stock_elem:
-                stock_text = stock_elem.get_text(strip=True)
-                stock_match = re.search(r'(\d+)', stock_text)
-                if stock_match:
-                    stock = int(stock_match.group(1))
+        # 在庫 - リンク内 → 直接の親
+        stock_elem = link.select_one("span.M_item-stock-smallstock, span.M_category-smallstock")
+        if not stock_elem:
+            stock_elem = item.select_one("span.M_item-stock-smallstock, span.M_category-smallstock")
+        if stock_elem:
+            stock_text = stock_elem.get_text(strip=True)
+            stock_match = re.search(r'(\d+)', stock_text)
+            if stock_match:
+                stock = int(stock_match.group(1))
+        else:
+            # テキストから在庫判定
+            item_text = item.get_text()
+            if "カート" in item_text:
+                stock = 1
+                stock_text = "在庫あり"
+            elif "売切" in item_text or "SOLD" in item_text.upper():
+                stock = 0
+                stock_text = "売切れ"
             elif price > 0:
-                stock = 1  # 価格があれば在庫ありと仮定
+                stock = 1
                 stock_text = "在庫あり"
 
-        # 画像 - 親要素ではなくリンク内または直接の親から取得
-        # （親要素だと複数商品の共通コンテナになり、最初の画像が返されてしまう）
+        # 画像 - リンク内 → 直接の親
         img_elem = link.select_one("span.itemImg img, img")
-        if not img_elem and link.parent:
-            # リンクの直接の親から探す
-            img_elem = link.parent.select_one("img")
+        if not img_elem:
+            img_elem = item.select_one("img")
         if img_elem:
             image_url = img_elem.get("src", "")
             if image_url and not image_url.startswith("http"):
