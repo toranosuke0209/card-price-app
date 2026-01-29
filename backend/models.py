@@ -175,3 +175,24 @@ class AdminInvite:
             "used_at": str(self.used_at) if self.used_at else None,
             "is_used": self.used_by is not None,
         }
+
+
+@dataclass
+class FeaturedKeyword:
+    """人気キーワード（管理者設定）"""
+    id: int
+    keyword: str
+    display_order: int = 0
+    is_active: int = 1
+    created_by: Optional[int] = None
+    created_at: Optional[datetime] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "keyword": self.keyword,
+            "display_order": self.display_order,
+            "is_active": self.is_active,
+            "created_by": self.created_by,
+            "created_at": str(self.created_at) if self.created_at else None,
+        }

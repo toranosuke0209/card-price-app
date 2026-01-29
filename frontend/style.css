@@ -17,6 +17,227 @@ body {
     padding: 20px;
 }
 
+/* =============================================================================
+   サイトヘッダー
+   ============================================================================= */
+
+.site-header {
+    background: white;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.header-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+}
+
+.site-logo {
+    display: flex;
+    flex-direction: column;
+    text-decoration: none;
+}
+
+.logo-text {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #3498db;
+    line-height: 1.2;
+}
+
+.logo-sub {
+    font-size: 0.75rem;
+    color: #666;
+}
+
+.site-nav {
+    display: flex;
+    gap: 5px;
+}
+
+.site-nav a {
+    padding: 8px 16px;
+    color: #555;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.site-nav a:hover {
+    background: #f0f0f0;
+    color: #3498db;
+}
+
+.site-nav a.active {
+    background: #3498db;
+    color: white;
+}
+
+/* =============================================================================
+   広告バナー
+   ============================================================================= */
+
+.ad-banner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 10px 20px;
+}
+
+.ad-placeholder {
+    background: #f0f0f0;
+    border: 2px dashed #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    color: #999;
+    font-size: 0.9rem;
+}
+
+.ad-header {
+    margin-top: 10px;
+}
+
+.ad-footer {
+    margin-bottom: 10px;
+}
+
+/* =============================================================================
+   メインコンテンツ
+   ============================================================================= */
+
+.main-content {
+    min-height: calc(100vh - 300px);
+}
+
+/* =============================================================================
+   サイトフッター
+   ============================================================================= */
+
+.site-footer {
+    background: #2c3e50;
+    color: #ecf0f1;
+    margin-top: 40px;
+}
+
+.footer-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 20px 20px;
+}
+
+.footer-links {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 30px;
+    margin-bottom: 30px;
+}
+
+.footer-section h4 {
+    font-size: 0.9rem;
+    color: #3498db;
+    margin-bottom: 15px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #34495e;
+}
+
+.footer-section a,
+.footer-section span {
+    display: block;
+    color: #bdc3c7;
+    text-decoration: none;
+    font-size: 0.85rem;
+    padding: 5px 0;
+    transition: color 0.2s;
+}
+
+.footer-section a:hover {
+    color: white;
+}
+
+.footer-bottom {
+    text-align: center;
+    padding-top: 20px;
+    border-top: 1px solid #34495e;
+}
+
+.footer-bottom p {
+    font-size: 0.85rem;
+    color: #95a5a6;
+    margin: 5px 0;
+}
+
+.footer-note {
+    font-size: 0.75rem !important;
+}
+
+/* =============================================================================
+   検索セクション
+   ============================================================================= */
+
+.search-section {
+    text-align: center;
+    padding: 30px 0;
+}
+
+.search-title {
+    font-size: 1.8rem;
+    color: #2c3e50;
+    margin-bottom: 8px;
+}
+
+.search-subtitle {
+    color: #666;
+    margin-bottom: 25px;
+}
+
+/* 人気キーワード（トップページ） */
+.featured-keywords {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.featured-keywords-label {
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 10px;
+}
+
+.featured-keywords-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+}
+
+.featured-keyword-tag {
+    padding: 8px 16px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.featured-keyword-tag:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.featured-keyword-tag:active {
+    transform: translateY(0);
+}
+
+/* レガシー互換（他ページ用） */
 header {
     text-align: center;
     margin-bottom: 30px;
@@ -883,6 +1104,115 @@ header h1 {
     padding: 20px;
 }
 
+/* キーワード管理 */
+.keyword-list {
+    margin-top: 20px;
+}
+
+.keyword-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 15px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    transition: background 0.2s;
+}
+
+.keyword-item:hover {
+    background: #e9ecef;
+}
+
+.keyword-item.inactive {
+    opacity: 0.5;
+}
+
+.keyword-order {
+    width: 24px;
+    height: 24px;
+    background: #3498db;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+.keyword-item.inactive .keyword-order {
+    background: #95a5a6;
+}
+
+.keyword-text {
+    flex: 1;
+    font-size: 0.95rem;
+}
+
+.keyword-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.keyword-btn {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s, opacity 0.2s;
+}
+
+.keyword-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.keyword-btn.toggle-btn {
+    background: #27ae60;
+    color: white;
+    min-width: 60px;
+}
+
+.keyword-item.inactive .keyword-btn.toggle-btn {
+    background: #95a5a6;
+}
+
+.keyword-btn.move-btn {
+    background: #3498db;
+    color: white;
+    padding: 6px 8px;
+}
+
+.keyword-btn.move-btn:hover:not(:disabled) {
+    background: #2980b9;
+}
+
+.keyword-btn.delete-btn {
+    background: #e74c3c;
+    color: white;
+    padding: 6px 10px;
+}
+
+.keyword-btn.delete-btn:hover {
+    background: #c0392b;
+}
+
+.keyword-btn.update-price-btn {
+    background: #f39c12;
+    color: white;
+}
+
+.keyword-btn.update-price-btn:hover:not(:disabled) {
+    background: #d68910;
+}
+
+.keyword-btn.update-price-btn:disabled {
+    background: #bdc3c7;
+}
+
 .not-admin {
     text-align: center;
     padding: 40px;
@@ -921,6 +1251,54 @@ header h1 {
 
 /* レスポンシブ調整 */
 @media (max-width: 768px) {
+    /* ヘッダー */
+    .header-inner {
+        flex-wrap: wrap;
+        padding: 10px 15px;
+    }
+
+    .site-logo {
+        order: 1;
+    }
+
+    #user-menu {
+        order: 2;
+    }
+
+    .site-nav {
+        order: 3;
+        width: 100%;
+        justify-content: center;
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid #eee;
+    }
+
+    .site-nav a {
+        padding: 8px 12px;
+        font-size: 0.85rem;
+    }
+
+    /* 検索セクション */
+    .search-title {
+        font-size: 1.4rem;
+    }
+
+    .search-section {
+        padding: 20px 0;
+    }
+
+    /* フッター */
+    .footer-links {
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+    }
+
+    .footer-inner {
+        padding: 30px 15px 15px;
+    }
+
+    /* 認証関連 */
     .header-top {
         flex-direction: column;
         gap: 15px;
@@ -942,5 +1320,32 @@ header h1 {
         flex-direction: column;
         align-items: flex-start;
         gap: 10px;
+    }
+}
+
+@media (max-width: 480px) {
+    .header-inner {
+        padding: 8px 10px;
+    }
+
+    .logo-text {
+        font-size: 1.3rem;
+    }
+
+    .site-nav {
+        gap: 2px;
+    }
+
+    .site-nav a {
+        padding: 6px 10px;
+        font-size: 0.8rem;
+    }
+
+    .footer-links {
+        grid-template-columns: 1fr;
+    }
+
+    .search-title {
+        font-size: 1.2rem;
     }
 }

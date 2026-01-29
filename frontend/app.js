@@ -224,6 +224,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ホーム画面描画
     function renderHomeData(data) {
+        // 人気キーワード
+        renderFeaturedKeywords(data.featured_keywords);
+
         // 統計情報
         const statsEl = document.getElementById('home-stats');
         if (statsEl && data.stats) {
@@ -271,6 +274,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span class="home-item-clicks">${item.click_count} clicks</span>
             </div>
         `);
+    }
+
+    // 人気キーワードを描画
+    function renderFeaturedKeywords(keywords) {
+        const el = document.getElementById('featured-keywords');
+        if (!el) return;
+
+        if (!keywords || keywords.length === 0) {
+            el.classList.add('hidden');
+            return;
+        }
+
+        el.classList.remove('hidden');
+        el.innerHTML = `
+            <div class="featured-keywords-label">人気のキーワード:</div>
+            <div class="featured-keywords-list">
+                ${keywords.map(kw => `
+                    <button class="featured-keyword-tag" onclick="searchCard('${escapeHtml(kw.keyword)}')">
+                        ${escapeHtml(kw.keyword)}
+                    </button>
+                `).join('')}
+            </div>
+        `;
     }
 
     // バッチ実行通知を描画

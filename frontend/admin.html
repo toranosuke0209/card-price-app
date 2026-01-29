@@ -3,18 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>管理画面 - バトスピ価格比較</title>
+    <title>管理画面 | BSPrice - バトスピ価格比較</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1><a href="/" class="header-link">バトスピ価格比較</a></h1>
-            <p class="subtitle">管理者ダッシュボード</p>
-            <div id="user-menu"></div>
-        </header>
+    <!-- ヘッダー -->
+    <header class="site-header">
+        <div class="header-inner">
+            <a href="/" class="site-logo">
+                <span class="logo-text">BSPrice</span>
+                <span class="logo-sub">バトスピ価格比較</span>
+            </a>
+            <nav class="site-nav">
+                <a href="/">トップ</a>
+                <a href="/ranking">ランキング</a>
+                <a href="/shops">ショップ一覧</a>
+            </nav>
+            <div id="user-menu" class="user-menu"></div>
+        </div>
+    </header>
 
-        <div id="admin-content" class="admin-content hidden">
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container">
+            <div class="search-section" style="padding-bottom: 10px;">
+                <h1 class="search-title" style="font-size: 1.5rem;">管理者ダッシュボード</h1>
+            </div>
+
+            <div id="admin-content" class="admin-content hidden">
             <!-- 統計情報 -->
             <div class="admin-section">
                 <h2>統計情報</h2>
@@ -58,6 +74,29 @@
                 </form>
             </div>
 
+            <!-- 人気キーワード管理 -->
+            <div class="admin-section">
+                <h2>人気キーワード管理</h2>
+                <p class="section-desc">トップページに表示される検索キーワードを管理します。価格は1日2回自動更新されます。</p>
+                <form id="keyword-form" class="admin-form" onsubmit="handleAddKeyword(event)">
+                    <div class="form-row">
+                        <div class="form-group" style="flex: 1;">
+                            <label for="new-keyword">キーワード追加</label>
+                            <input type="text" id="new-keyword" required placeholder="例: ジークフリード">
+                        </div>
+                        <div class="form-group" style="flex: 0; padding-top: 24px;">
+                            <button type="submit" class="admin-btn">追加</button>
+                        </div>
+                    </div>
+                    <div class="form-error" id="keyword-error"></div>
+                </form>
+                <div style="margin: 15px 0;">
+                    <button class="admin-btn" onclick="updateAllKeywordPrices()" id="update-all-btn">全キーワードの価格を更新</button>
+                    <span id="update-all-status" style="margin-left: 10px; color: #666;"></span>
+                </div>
+                <div class="keyword-list" id="keyword-list"></div>
+            </div>
+
             <!-- 人気カード更新 -->
             <div class="admin-section">
                 <h2>人気カード管理</h2>
@@ -83,7 +122,40 @@
             <p>管理者権限が必要です。</p>
             <a href="/" class="back-link">ホームに戻る</a>
         </div>
-    </div>
+        </div>
+    </main>
+
+    <!-- フッター -->
+    <footer class="site-footer">
+        <div class="footer-inner">
+            <div class="footer-links">
+                <div class="footer-section">
+                    <h4>ページ</h4>
+                    <a href="/">トップ</a>
+                    <a href="/ranking">ランキング</a>
+                    <a href="/shops">ショップ一覧</a>
+                </div>
+                <div class="footer-section">
+                    <h4>対応ショップ</h4>
+                    <span>カードラッシュ</span>
+                    <span>Tier One</span>
+                    <span>フルアヘッド</span>
+                    <span>ホビーステーション</span>
+                    <span>バトスキ</span>
+                    <span>遊々亭</span>
+                </div>
+                <div class="footer-section">
+                    <h4>その他</h4>
+                    <a href="/login">ログイン</a>
+                    <a href="/about">このサイトについて</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 BSPrice - バトスピ価格比較</p>
+                <p class="footer-note">※価格は各ショップの在庫状況により変動します</p>
+            </div>
+        </div>
+    </footer>
 
     <script src="/static/auth.js"></script>
     <script>
@@ -114,6 +186,7 @@
             // データ読み込み
             loadStats();
             loadInvites();
+            loadKeywords();
         });
 
         // 統計情報を読み込み
@@ -197,6 +270,230 @@
                 loadStats();
             } catch (e) {
                 errorEl.textContent = e.message;
+            }
+        }
+
+        // =================================================================
+        // 人気キーワード管理
+        // =================================================================
+
+        // キーワード一覧を読み込み
+        async function loadKeywords() {
+            try {
+                const response = await Auth.authFetch('/api/admin/featured-keywords');
+                if (!response.ok) return;
+                const data = await response.json();
+                renderKeywords(data.keywords);
+            } catch (e) {
+                console.error('Failed to load keywords:', e);
+            }
+        }
+
+        // キーワード一覧を描画
+        function renderKeywords(keywords) {
+            const listEl = document.getElementById('keyword-list');
+            if (!keywords || keywords.length === 0) {
+                listEl.innerHTML = '<p class="no-data">キーワードがありません</p>';
+                return;
+            }
+
+            listEl.innerHTML = keywords.map((kw, index) => `
+                <div class="keyword-item ${kw.is_active ? '' : 'inactive'}" data-id="${kw.id}">
+                    <span class="keyword-order">${index + 1}</span>
+                    <span class="keyword-text">${escapeHtml(kw.keyword)}</span>
+                    <div class="keyword-actions">
+                        <button class="keyword-btn update-price-btn" onclick="updateKeywordPrices(${kw.id}, '${escapeHtml(kw.keyword)}')" title="価格を即座に更新">価格更新</button>
+                        <button class="keyword-btn toggle-btn" onclick="toggleKeyword(${kw.id}, ${kw.is_active})" title="${kw.is_active ? '非表示にする' : '表示する'}">
+                            ${kw.is_active ? '表示中' : '非表示'}
+                        </button>
+                        <button class="keyword-btn move-btn" onclick="moveKeyword(${kw.id}, -1)" title="上に移動" ${index === 0 ? 'disabled' : ''}>↑</button>
+                        <button class="keyword-btn move-btn" onclick="moveKeyword(${kw.id}, 1)" title="下に移動" ${index === keywords.length - 1 ? 'disabled' : ''}>↓</button>
+                        <button class="keyword-btn delete-btn" onclick="deleteKeyword(${kw.id})" title="削除">×</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // キーワード追加処理
+        async function handleAddKeyword(event) {
+            event.preventDefault();
+            const errorEl = document.getElementById('keyword-error');
+            errorEl.textContent = '';
+
+            const keyword = document.getElementById('new-keyword').value.trim();
+            if (!keyword) return;
+
+            try {
+                const response = await Auth.authFetch('/api/admin/featured-keywords', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ keyword })
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    errorEl.textContent = data.detail || '追加に失敗しました';
+                    return;
+                }
+
+                document.getElementById('new-keyword').value = '';
+                loadKeywords();
+            } catch (e) {
+                errorEl.textContent = e.message;
+            }
+        }
+
+        // キーワードの表示/非表示を切り替え
+        async function toggleKeyword(id, currentActive) {
+            try {
+                const response = await Auth.authFetch(`/api/admin/featured-keywords/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_active: currentActive ? 0 : 1 })
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    alert(data.detail || '更新に失敗しました');
+                    return;
+                }
+
+                loadKeywords();
+            } catch (e) {
+                alert(e.message);
+            }
+        }
+
+        // キーワードを移動（並び替え）
+        let currentKeywords = [];
+        async function moveKeyword(id, direction) {
+            // 現在の一覧を取得
+            const response = await Auth.authFetch('/api/admin/featured-keywords');
+            if (!response.ok) return;
+            const data = await response.json();
+            currentKeywords = data.keywords;
+
+            const index = currentKeywords.findIndex(k => k.id === id);
+            if (index === -1) return;
+
+            const newIndex = index + direction;
+            if (newIndex < 0 || newIndex >= currentKeywords.length) return;
+
+            // 配列内で入れ替え
+            [currentKeywords[index], currentKeywords[newIndex]] = [currentKeywords[newIndex], currentKeywords[index]];
+
+            // 新しい順序でAPIに送信
+            const newOrder = currentKeywords.map(k => k.id);
+            try {
+                const reorderResponse = await Auth.authFetch('/api/admin/featured-keywords/reorder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ keyword_ids: newOrder })
+                });
+
+                if (!reorderResponse.ok) {
+                    const errData = await reorderResponse.json();
+                    alert(errData.detail || '並び替えに失敗しました');
+                    return;
+                }
+
+                loadKeywords();
+            } catch (e) {
+                alert(e.message);
+            }
+        }
+
+        // キーワードを削除
+        async function deleteKeyword(id) {
+            if (!confirm('このキーワードを削除しますか？')) return;
+
+            try {
+                const response = await Auth.authFetch(`/api/admin/featured-keywords/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    alert(data.detail || '削除に失敗しました');
+                    return;
+                }
+
+                loadKeywords();
+            } catch (e) {
+                alert(e.message);
+            }
+        }
+
+        // 単一キーワードの価格を更新
+        async function updateKeywordPrices(id, keyword) {
+            if (!confirm(`「${keyword}」の価格を各ショップから取得します。\n数十秒かかる場合があります。続行しますか？`)) return;
+
+            // ボタンを無効化
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '更新中...';
+
+            try {
+                const response = await Auth.authFetch(`/api/admin/featured-keywords/${id}/update-prices`, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    alert(data.detail || '価格更新に失敗しました');
+                    return;
+                }
+
+                // 結果を表示
+                let resultMsg = `「${keyword}」の価格更新完了\n\n`;
+                resultMsg += `取得: ${data.stats.total}件\n`;
+                resultMsg += `更新: ${data.stats.new}件\n\n`;
+                resultMsg += `【ショップ別】\n`;
+                for (const [shop, stat] of Object.entries(data.stats.shops)) {
+                    resultMsg += `${shop}: ${stat.found}件取得, ${stat.saved}件更新\n`;
+                }
+                alert(resultMsg);
+
+            } catch (e) {
+                alert(e.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+
+        // 全キーワードの価格を更新
+        async function updateAllKeywordPrices() {
+            if (!confirm('全ての人気キーワードの価格を更新します。\n数分かかる場合があります。続行しますか？')) return;
+
+            const btn = document.getElementById('update-all-btn');
+            const statusEl = document.getElementById('update-all-status');
+            btn.disabled = true;
+            btn.textContent = '更新中...';
+            statusEl.textContent = '価格を取得しています...';
+
+            try {
+                const response = await Auth.authFetch('/api/admin/featured-keywords/update-all-prices', {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    alert(data.detail || '価格更新に失敗しました');
+                    statusEl.textContent = 'エラーが発生しました';
+                    return;
+                }
+
+                statusEl.textContent = `完了: ${data.stats.keywords}キーワード, ${data.stats.total}件取得, ${data.stats.new}件更新`;
+                alert(`価格更新完了\n\nキーワード数: ${data.stats.keywords}\n取得件数: ${data.stats.total}\n更新件数: ${data.stats.new}`);
+
+            } catch (e) {
+                alert(e.message);
+                statusEl.textContent = 'エラーが発生しました';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '全キーワードの価格を更新';
             }
         }
 

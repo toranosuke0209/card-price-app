@@ -56,6 +56,7 @@ from database import (
     init_shops,
     migrate_v2,
     migrate_v3_auth,
+    migrate_v4_featured_keywords,
     get_all_shops,
     get_shop_by_name,
     get_latest_prices_by_keyword,
@@ -87,6 +88,12 @@ from database import (
     get_card_by_id,
     get_or_create_card_v2,
     update_popular_cards,
+    # 人気キーワード関連
+    get_featured_keywords,
+    add_featured_keyword,
+    update_featured_keyword,
+    delete_featured_keyword,
+    reorder_featured_keywords,
 )
 
 from auth import (
@@ -116,6 +123,7 @@ async def startup():
     init_database()
     migrate_v2()  # v2マイグレーション実行
     migrate_v3_auth()  # v3認証マイグレーション実行
+    migrate_v4_featured_keywords()  # v4人気キーワードマイグレーション実行
     init_shops()
 
 
@@ -241,6 +249,7 @@ async def get_home_data():
     - hot_cards: よくクリックされているカード
     - stats: DB統計情報
     - batch_logs: 最近のバッチ実行結果
+    - featured_keywords: 管理者設定の人気キーワード
     """
     # 最近更新されたカード
     recently_updated = get_recently_updated(limit=10)
@@ -261,6 +270,10 @@ async def get_home_data():
     # 最近のバッチ実行結果（各ショップの最新1件）
     batch_logs = get_recent_batch_logs(per_shop=True)
 
+    # 人気キーワード（管理者設定）
+    featured_keywords = get_featured_keywords(active_only=True)
+    featured_keywords_list = [kw.to_dict() for kw in featured_keywords]
+
     return {
         "recently_updated": recently_updated_list,
         "price_up": price_up,
@@ -272,6 +285,7 @@ async def get_home_data():
             "last_updated": stats["newest_price"],
         },
         "batch_logs": batch_logs,
+        "featured_keywords": featured_keywords_list,
     }
 
 
@@ -632,6 +646,163 @@ async def run_update_popular(admin_user: User = Depends(require_admin)):
     """
     updated = update_popular_cards()
     return {"message": f"{updated}件のカードを人気カードに更新しました"}
+
+
+# =============================================================================
+# 人気キーワード管理API
+# =============================================================================
+
+class FeaturedKeywordCreate(BaseModel):
+    keyword: str
+
+
+class FeaturedKeywordUpdate(BaseModel):
+    keyword: Optional[str] = None
+    is_active: Optional[int] = None
+
+
+class FeaturedKeywordReorder(BaseModel):
+    keyword_ids: list[int]
+
+
+@app.get("/api/admin/featured-keywords")
+async def list_featured_keywords(admin_user: User = Depends(require_admin)):
+    """
+    人気キーワード一覧を取得（管理者用、非アクティブも含む）
+    """
+    keywords = get_featured_keywords(active_only=False)
+    return {"keywords": [kw.to_dict() for kw in keywords]}
+
+
+@app.post("/api/admin/featured-keywords")
+async def create_featured_keyword(
+    data: FeaturedKeywordCreate,
+    admin_user: User = Depends(require_admin)
+):
+    """
+    人気キーワードを追加
+    """
+    if not data.keyword or len(data.keyword.strip()) < 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="キーワードを入力してください"
+        )
+
+    keyword = add_featured_keyword(data.keyword.strip(), admin_user.id)
+    return {"message": "キーワードを追加しました", "keyword": keyword.to_dict()}
+
+
+@app.put("/api/admin/featured-keywords/{keyword_id}")
+async def update_featured_keyword_api(
+    keyword_id: int,
+    data: FeaturedKeywordUpdate,
+    admin_user: User = Depends(require_admin)
+):
+    """
+    人気キーワードを更新
+    """
+    keyword = update_featured_keyword(
+        keyword_id,
+        keyword=data.keyword,
+        is_active=data.is_active
+    )
+    if not keyword:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="キーワードが見つかりません"
+        )
+
+    return {"message": "キーワードを更新しました", "keyword": keyword.to_dict()}
+
+
+@app.delete("/api/admin/featured-keywords/{keyword_id}")
+async def delete_featured_keyword_api(
+    keyword_id: int,
+    admin_user: User = Depends(require_admin)
+):
+    """
+    人気キーワードを削除
+    """
+    success = delete_featured_keyword(keyword_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="キーワードが見つかりません"
+        )
+
+    return {"message": "キーワードを削除しました"}
+
+
+@app.post("/api/admin/featured-keywords/reorder")
+async def reorder_featured_keywords_api(
+    data: FeaturedKeywordReorder,
+    admin_user: User = Depends(require_admin)
+):
+    """
+    人気キーワードの表示順を変更
+    """
+    reorder_featured_keywords(data.keyword_ids)
+    return {"message": "表示順を更新しました"}
+
+
+@app.post("/api/admin/featured-keywords/{keyword_id}/update-prices")
+async def update_keyword_prices_api(
+    keyword_id: int,
+    admin_user: User = Depends(require_admin)
+):
+    """
+    指定キーワードの価格を即座に更新
+    """
+    from update_featured_prices import update_single_keyword
+
+    # キーワードを取得
+    keywords = get_featured_keywords(active_only=False)
+    keyword = next((k for k in keywords if k.id == keyword_id), None)
+
+    if not keyword:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="キーワードが見つかりません"
+        )
+
+    # 価格更新実行
+    try:
+        stats = update_single_keyword(keyword.keyword)
+        return {
+            "message": f"「{keyword.keyword}」の価格を更新しました",
+            "stats": {
+                "total": stats["total"],
+                "new": stats["new"],
+                "shops": stats["shops"]
+            }
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"価格更新に失敗しました: {str(e)}"
+        )
+
+
+@app.post("/api/admin/featured-keywords/update-all-prices")
+async def update_all_keyword_prices_api(
+    admin_user: User = Depends(require_admin)
+):
+    """
+    全ての人気キーワードの価格を更新
+    """
+    from update_featured_prices import update_all_featured_keywords
+
+    try:
+        stats = update_all_featured_keywords()
+        return {
+            "message": "全キーワードの価格を更新しました",
+            "stats": stats
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"価格更新に失敗しました: {str(e)}"
+        )
 
 
 if __name__ == "__main__":

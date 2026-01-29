@@ -3,17 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ログイン - バトスピ価格比較</title>
+    <meta name="description" content="バトスピ価格比較サイトにログインして、お気に入りカードを保存しましょう。">
+    <title>ログイン | BSPrice - バトスピ価格比較</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1><a href="/" class="header-link">バトスピ価格比較</a></h1>
-            <p class="subtitle">ログイン / 新規登録</p>
-        </header>
+    <!-- ヘッダー -->
+    <header class="site-header">
+        <div class="header-inner">
+            <a href="/" class="site-logo">
+                <span class="logo-text">BSPrice</span>
+                <span class="logo-sub">バトスピ価格比較</span>
+            </a>
+            <nav class="site-nav">
+                <a href="/">トップ</a>
+                <a href="/ranking">ランキング</a>
+                <a href="/shops">ショップ一覧</a>
+            </nav>
+        </div>
+    </header>
 
-        <div class="auth-container">
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container">
+            <div class="search-section" style="padding-bottom: 10px;">
+                <h1 class="search-title" style="font-size: 1.5rem;">ログイン / 新規登録</h1>
+            </div>
+
+            <div class="auth-container">
             <!-- タブ切り替え -->
             <div class="auth-tabs">
                 <button class="auth-tab active" data-tab="login">ログイン</button>
@@ -91,7 +108,39 @@
                 <p class="auth-note">管理者として登録するには、既存の管理者から招待コードを受け取る必要があります。</p>
             </div>
         </div>
-    </div>
+    </main>
+
+    <!-- フッター -->
+    <footer class="site-footer">
+        <div class="footer-inner">
+            <div class="footer-links">
+                <div class="footer-section">
+                    <h4>ページ</h4>
+                    <a href="/">トップ</a>
+                    <a href="/ranking">ランキング</a>
+                    <a href="/shops">ショップ一覧</a>
+                </div>
+                <div class="footer-section">
+                    <h4>対応ショップ</h4>
+                    <span>カードラッシュ</span>
+                    <span>Tier One</span>
+                    <span>フルアヘッド</span>
+                    <span>ホビーステーション</span>
+                    <span>バトスキ</span>
+                    <span>遊々亭</span>
+                </div>
+                <div class="footer-section">
+                    <h4>その他</h4>
+                    <a href="/login">ログイン</a>
+                    <a href="/about">このサイトについて</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 BSPrice - バトスピ価格比較</p>
+                <p class="footer-note">※価格は各ショップの在庫状況により変動します</p>
+            </div>
+        </div>
+    </footer>
 
     <script src="/static/auth.js"></script>
     <script>

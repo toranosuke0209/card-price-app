@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Optional
 from contextlib import contextmanager
 
-from models import Shop, Card, Price, Click, SearchLog, BatchProgress, FetchQueue, User, Favorite, AdminInvite
+from models import Shop, Card, Price, Click, SearchLog, BatchProgress, FetchQueue, User, Favorite, AdminInvite, FeaturedKeyword
 
 # DBファイルパス
 DB_PATH = Path(__file__).parent / "card_price.db"
@@ -252,6 +252,32 @@ def migrate_v3_auth():
 
         conn.commit()
         print("Migration v3 (auth) completed")
+
+
+def migrate_v4_featured_keywords():
+    """v4スキーマへのマイグレーション（人気キーワード機能追加）"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # 人気キーワードテーブル
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS featured_keywords (
+                id INTEGER PRIMARY KEY,
+                keyword TEXT NOT NULL,
+                display_order INTEGER DEFAULT 0,
+                is_active INTEGER DEFAULT 1,
+                created_by INTEGER,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (created_by) REFERENCES users(id)
+            )
+        """)
+
+        # インデックス作成
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_featured_keywords_order ON featured_keywords(display_order)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_featured_keywords_active ON featured_keywords(is_active)")
+
+        conn.commit()
+        print("Migration v4 (featured_keywords) completed")
 
 
 def init_shops():
@@ -1125,6 +1151,104 @@ def get_all_admin_invites(created_by: Optional[int] = None) -> list[AdminInvite]
 
 
 # =============================================================================
+# 人気キーワード操作
+# =============================================================================
+
+def get_featured_keywords(active_only: bool = True) -> list[FeaturedKeyword]:
+    """人気キーワード一覧を取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        if active_only:
+            cursor.execute("""
+                SELECT * FROM featured_keywords
+                WHERE is_active = 1
+                ORDER BY display_order ASC, id ASC
+            """)
+        else:
+            cursor.execute("""
+                SELECT * FROM featured_keywords
+                ORDER BY display_order ASC, id ASC
+            """)
+        rows = cursor.fetchall()
+        return [FeaturedKeyword(**dict(row)) for row in rows]
+
+
+def add_featured_keyword(keyword: str, created_by: int) -> FeaturedKeyword:
+    """人気キーワードを追加"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # 最大のdisplay_orderを取得
+        cursor.execute("SELECT MAX(display_order) FROM featured_keywords")
+        max_order = cursor.fetchone()[0] or 0
+
+        cursor.execute("""
+            INSERT INTO featured_keywords (keyword, display_order, created_by)
+            VALUES (?, ?, ?)
+        """, (keyword, max_order + 1, created_by))
+        conn.commit()
+
+        cursor.execute("SELECT * FROM featured_keywords WHERE id = ?", (cursor.lastrowid,))
+        row = cursor.fetchone()
+        return FeaturedKeyword(**dict(row))
+
+
+def update_featured_keyword(keyword_id: int, keyword: str = None,
+                            is_active: int = None) -> Optional[FeaturedKeyword]:
+    """人気キーワードを更新"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        updates = []
+        params = []
+
+        if keyword is not None:
+            updates.append("keyword = ?")
+            params.append(keyword)
+        if is_active is not None:
+            updates.append("is_active = ?")
+            params.append(is_active)
+
+        if not updates:
+            return None
+
+        params.append(keyword_id)
+        cursor.execute(f"""
+            UPDATE featured_keywords
+            SET {', '.join(updates)}
+            WHERE id = ?
+        """, params)
+        conn.commit()
+
+        cursor.execute("SELECT * FROM featured_keywords WHERE id = ?", (keyword_id,))
+        row = cursor.fetchone()
+        return FeaturedKeyword(**dict(row)) if row else None
+
+
+def delete_featured_keyword(keyword_id: int) -> bool:
+    """人気キーワードを削除"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM featured_keywords WHERE id = ?", (keyword_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def reorder_featured_keywords(keyword_ids: list[int]) -> bool:
+    """人気キーワードの表示順を更新"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        for order, keyword_id in enumerate(keyword_ids):
+            cursor.execute("""
+                UPDATE featured_keywords
+                SET display_order = ?
+                WHERE id = ?
+            """, (order, keyword_id))
+        conn.commit()
+        return True
+
+
+# =============================================================================
 # カード登録（拡張版）
 # =============================================================================
 
@@ -1207,6 +1331,7 @@ if __name__ == "__main__":
     init_database()
     migrate_v2()  # v2マイグレーション追加
     migrate_v3_auth()  # v3認証マイグレーション追加
+    migrate_v4_featured_keywords()  # v4人気キーワードマイグレーション追加
     init_shops()
     print("\nDatabase stats:")
     print(get_database_stats())

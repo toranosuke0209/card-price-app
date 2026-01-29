@@ -3,88 +3,149 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="バトルスピリッツのカード価格を複数ショップから一括比較。最安値を簡単に見つけられます。">
     <title>バトスピ価格比較 | BSPrice</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <div class="header-top">
-                <h1>バトスピ価格比較</h1>
-                <div id="user-menu"></div>
-            </div>
-            <p class="subtitle">バトルスピリッツの価格を複数ショップから一括比較</p>
-        </header>
-
-        <div class="search-box">
-            <input
-                type="text"
-                id="keyword"
-                placeholder="カード名を入力（例: ジークフリード）"
-                autofocus
-            >
-            <button id="search-btn">検索</button>
+    <!-- ヘッダー -->
+    <header class="site-header">
+        <div class="header-inner">
+            <a href="/" class="site-logo">
+                <span class="logo-text">BSPrice</span>
+                <span class="logo-sub">バトスピ価格比較</span>
+            </a>
+            <nav class="site-nav">
+                <a href="/">トップ</a>
+                <a href="/ranking">ランキング</a>
+                <a href="/shops">ショップ一覧</a>
+            </nav>
+            <div id="user-menu" class="user-menu"></div>
         </div>
+    </header>
 
-        <div class="controls">
-            <label>
-                並び替え:
-                <select id="sort-select">
-                    <option value="price-asc">価格が安い順</option>
-                    <option value="price-desc">価格が高い順</option>
-                    <option value="site">サイト別</option>
-                </select>
-            </label>
-            <label>
-                在庫:
-                <select id="stock-filter">
-                    <option value="all">すべて</option>
-                    <option value="in-stock">在庫あり</option>
-                    <option value="out-of-stock">売り切れ</option>
-                </select>
-            </label>
-            <span id="result-count"></span>
-        </div>
-
-        <div id="loading" class="loading hidden">
-            <div class="spinner"></div>
-            <p>検索中...</p>
-        </div>
-
-        <div id="error" class="error hidden"></div>
-
-        <div id="results" class="results"></div>
-
-        <!-- ホーム画面セクション（検索前に表示） -->
-        <div id="home" class="home-section">
-            <div class="home-stats" id="home-stats"></div>
-
-            <!-- バッチ実行通知 -->
-            <div id="batch-notification" class="batch-notification hidden"></div>
-
-            <div class="home-grid">
-                <div class="home-card">
-                    <h3>最近更新</h3>
-                    <div id="recently-updated" class="home-list"></div>
-                </div>
-
-                <div class="home-card">
-                    <h3>値上がり</h3>
-                    <div id="price-up" class="home-list"></div>
-                </div>
-
-                <div class="home-card">
-                    <h3>値下がり</h3>
-                    <div id="price-down" class="home-list"></div>
-                </div>
-
-                <div class="home-card">
-                    <h3>注目カード</h3>
-                    <div id="hot-cards" class="home-list"></div>
-                </div>
-            </div>
-        </div>
+    <!-- 広告エリア（ヘッダー下） -->
+    <div class="ad-banner ad-header">
+        <div class="ad-placeholder">広告</div>
     </div>
+
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container">
+            <!-- 検索ボックス -->
+            <div class="search-section">
+                <h1 class="search-title">バトルスピリッツ カード価格比較</h1>
+                <p class="search-subtitle">複数ショップの価格を一括検索</p>
+                <div class="search-box">
+                    <input
+                        type="text"
+                        id="keyword"
+                        placeholder="カード名を入力（例: ジークフリード）"
+                        autofocus
+                    >
+                    <button id="search-btn">検索</button>
+                </div>
+                <!-- 人気キーワード -->
+                <div id="featured-keywords" class="featured-keywords hidden"></div>
+            </div>
+
+            <div class="controls">
+                <label>
+                    並び替え:
+                    <select id="sort-select">
+                        <option value="price-asc">価格が安い順</option>
+                        <option value="price-desc">価格が高い順</option>
+                        <option value="site">サイト別</option>
+                    </select>
+                </label>
+                <label>
+                    在庫:
+                    <select id="stock-filter">
+                        <option value="all">すべて</option>
+                        <option value="in-stock">在庫あり</option>
+                        <option value="out-of-stock">売り切れ</option>
+                    </select>
+                </label>
+                <span id="result-count"></span>
+            </div>
+
+            <div id="loading" class="loading hidden">
+                <div class="spinner"></div>
+                <p>検索中...</p>
+            </div>
+
+            <div id="error" class="error hidden"></div>
+
+            <div id="results" class="results"></div>
+
+            <!-- ホーム画面セクション（検索前に表示） -->
+            <div id="home" class="home-section">
+                <div class="home-stats" id="home-stats"></div>
+
+                <!-- バッチ実行通知 -->
+                <div id="batch-notification" class="batch-notification hidden"></div>
+
+                <div class="home-grid">
+                    <div class="home-card">
+                        <h3>最近更新</h3>
+                        <div id="recently-updated" class="home-list"></div>
+                    </div>
+
+                    <div class="home-card">
+                        <h3>値上がり</h3>
+                        <div id="price-up" class="home-list"></div>
+                    </div>
+
+                    <div class="home-card">
+                        <h3>値下がり</h3>
+                        <div id="price-down" class="home-list"></div>
+                    </div>
+
+                    <div class="home-card">
+                        <h3>注目カード</h3>
+                        <div id="hot-cards" class="home-list"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 広告エリア（フッター上） -->
+    <div class="ad-banner ad-footer">
+        <div class="ad-placeholder">広告</div>
+    </div>
+
+    <!-- フッター -->
+    <footer class="site-footer">
+        <div class="footer-inner">
+            <div class="footer-links">
+                <div class="footer-section">
+                    <h4>ページ</h4>
+                    <a href="/">トップ</a>
+                    <a href="/ranking">ランキング</a>
+                    <a href="/shops">ショップ一覧</a>
+                </div>
+                <div class="footer-section">
+                    <h4>対応ショップ</h4>
+                    <span>カードラッシュ</span>
+                    <span>Tier One</span>
+                    <span>フルアヘッド</span>
+                    <span>ホビーステーション</span>
+                    <span>バトスキ</span>
+                    <span>遊々亭</span>
+                </div>
+                <div class="footer-section">
+                    <h4>その他</h4>
+                    <a href="/login">ログイン</a>
+                    <a href="/about">このサイトについて</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 BSPrice - バトスピ価格比較</p>
+                <p class="footer-note">※価格は各ショップの在庫状況により変動します</p>
+            </div>
+        </div>
+    </footer>
 
     <script src="/static/auth.js"></script>
     <script src="/static/app.js"></script>

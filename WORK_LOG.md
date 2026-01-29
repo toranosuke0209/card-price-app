@@ -248,6 +248,68 @@ PYEOF"
 
 ---
 
+## 2026-01-29: 人気キーワード管理機能
+
+### 実装内容
+
+管理者が人気キーワードを設定し、トップページに表示。価格は1日2回自動更新。
+
+#### 新規作成ファイル
+| ファイル | 説明 |
+|---------|------|
+| `backend/update_featured_prices.py` | 人気キーワード価格更新スクリプト |
+
+#### 変更ファイル
+| ファイル | 変更内容 |
+|---------|---------|
+| `backend/models.py` | FeaturedKeywordモデル追加 |
+| `backend/database.py` | featured_keywordsテーブル、CRUD関数追加 |
+| `backend/main.py` | 人気キーワード管理API追加 |
+| `frontend/admin.html` | キーワード管理UI追加 |
+| `frontend/app.js` | トップページにキーワード表示 |
+| `frontend/index.html` | キーワード表示エリア追加 |
+| `frontend/style.css` | キーワード関連スタイル追加 |
+
+### APIエンドポイント
+
+| エンドポイント | メソッド | 認証 | 説明 |
+|---------------|---------|------|------|
+| `/api/home` | GET | 不要 | featured_keywordsを含む |
+| `/api/admin/featured-keywords` | GET | 管理者 | キーワード一覧 |
+| `/api/admin/featured-keywords` | POST | 管理者 | キーワード追加 |
+| `/api/admin/featured-keywords/{id}` | PUT | 管理者 | キーワード更新 |
+| `/api/admin/featured-keywords/{id}` | DELETE | 管理者 | キーワード削除 |
+| `/api/admin/featured-keywords/reorder` | POST | 管理者 | 並び替え |
+| `/api/admin/featured-keywords/{id}/update-prices` | POST | 管理者 | 単一キーワード価格更新 |
+| `/api/admin/featured-keywords/update-all-prices` | POST | 管理者 | 全キーワード価格更新 |
+
+### EC2 cron設定（1日2回自動更新）
+
+```bash
+# SSH接続
+ssh -i "C:/Users/ykh2435064/Desktop/card-price-app-key.pem" ubuntu@54.64.210.46
+
+# cron設定
+crontab -e
+
+# 以下を追加（午前6時と午後6時に実行）
+0 6 * * * cd /home/ubuntu/project/backend && ./venv/bin/python update_featured_prices.py >> /home/ubuntu/project/logs/featured_prices.log 2>&1
+0 18 * * * cd /home/ubuntu/project/backend && ./venv/bin/python update_featured_prices.py >> /home/ubuntu/project/logs/featured_prices.log 2>&1
+
+# ログディレクトリ作成
+mkdir -p /home/ubuntu/project/logs
+```
+
+### 使い方
+
+1. 管理画面（/admin）にログイン
+2. 「人気キーワード管理」セクションでキーワードを追加
+3. 「価格更新」ボタンで即座に価格取得
+4. 「全キーワードの価格を更新」で一括更新
+5. トップページの検索ボックス下にキーワードが表示される
+
+---
+
 ## 次回作業候補
 
 1. **フルアヘッド価格問題修正**（優先）
