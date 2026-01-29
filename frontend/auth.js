@@ -332,12 +332,12 @@ async function updateUserMenu() {
                     <button class="user-menu-btn">
                         <span class="user-icon">&#128100;</span>
                         <span class="user-name">${escapeHtml(user.username)}</span>
-                        ${user.role === 'admin' ? '<span class="admin-badge">管理者</span>' : ''}
+                        ${user.role === 'admin' ? '<span class="admin-badge">Admin</span>' : ''}
                     </button>
                     <div class="user-menu-content">
-                        <a href="/favorites" class="menu-item">お気に入り</a>
-                        ${user.role === 'admin' ? '<a href="/admin" class="menu-item">管理画面</a>' : ''}
-                        <button class="menu-item logout-btn" onclick="Auth.logout()">ログアウト</button>
+                        <a href="/favorites" class="menu-item">&#9734; お気に入り</a>
+                        ${user.role === 'admin' ? '<a href="/admin" class="menu-item">&#9881; 管理画面</a>' : ''}
+                        <button class="menu-item logout-btn" onclick="Auth.logout()">&#8594; ログアウト</button>
                     </div>
                 </div>
             `;
