@@ -90,7 +90,9 @@ const Auth = {
         }
 
         this.setToken(data.access_token);
-        await this.fetchCurrentUser();
+        // ログイン直後はトークンが有効なはずなので、エラーでもトークンを削除しない
+        await this.fetchCurrentUser(false);
+
         return data;
     },
 
@@ -113,7 +115,7 @@ const Auth = {
         }
 
         this.setToken(data.access_token);
-        await this.fetchCurrentUser();
+        await this.fetchCurrentUser(false);
         return data;
     },
 
@@ -141,15 +143,17 @@ const Auth = {
         }
 
         this.setToken(data.access_token);
-        await this.fetchCurrentUser();
+        await this.fetchCurrentUser(false);
         return data;
     },
 
     /**
      * 現在のユーザー情報を取得
+     * @param {boolean} removeTokenOnError - エラー時にトークンを削除するか（デフォルト: true）
      */
-    async fetchCurrentUser() {
-        if (!this.getToken()) return null;
+    async fetchCurrentUser(removeTokenOnError = true) {
+        const token = this.getToken();
+        if (!token) return null;
 
         try {
             const response = await fetch('/api/auth/me', {
@@ -157,7 +161,9 @@ const Auth = {
             });
 
             if (!response.ok) {
-                this.removeToken();
+                if (removeTokenOnError) {
+                    this.removeToken();
+                }
                 return null;
             }
 
@@ -322,25 +328,16 @@ const Favorites = {
  */
 async function updateUserMenu() {
     const userMenuEl = document.getElementById('user-menu');
-    if (!userMenuEl) {
-        console.log('[Auth] user-menu element not found');
-        return;
-    }
-
-    console.log('[Auth] updateUserMenu called, isLoggedIn:', Auth.isLoggedIn());
+    if (!userMenuEl) return;
 
     if (Auth.isLoggedIn()) {
         let user = Auth.getUser();
-        console.log('[Auth] cached user:', user);
 
         if (!user) {
-            console.log('[Auth] fetching user from API...');
             user = await Auth.fetchCurrentUser();
-            console.log('[Auth] fetched user:', user);
         }
 
         if (user) {
-            console.log('[Auth] rendering user menu for:', user.username);
             userMenuEl.innerHTML = `
                 <div class="user-menu-dropdown">
                     <button class="user-menu-btn">
@@ -370,11 +367,9 @@ async function updateUserMenu() {
             }
         } else {
             // トークンが無効な場合
-            console.log('[Auth] user is null, showing login button');
             showLoginButton(userMenuEl);
         }
     } else {
-        console.log('[Auth] not logged in, showing login button');
         showLoginButton(userMenuEl);
     }
 }

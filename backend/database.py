@@ -280,6 +280,64 @@ def migrate_v4_featured_keywords():
         print("Migration v4 (featured_keywords) completed")
 
 
+def migrate_v5_amazon_products():
+    """v5スキーマへのマイグレーション（Amazon商品機能追加）"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # Amazon商品テーブル
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS amazon_products (
+                id INTEGER PRIMARY KEY,
+                asin TEXT NOT NULL UNIQUE,
+                name TEXT NOT NULL,
+                price INTEGER NOT NULL,
+                image_url TEXT NOT NULL,
+                affiliate_url TEXT NOT NULL,
+                display_order INTEGER DEFAULT 0,
+                is_active INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # インデックス作成
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_amazon_products_order ON amazon_products(display_order)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_amazon_products_active ON amazon_products(is_active)")
+
+        conn.commit()
+        print("Migration v5 (amazon_products) completed")
+
+
+def migrate_v6_rakuten_products():
+    """v6スキーマへのマイグレーション（楽天商品機能追加）"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # 楽天商品テーブル
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS rakuten_products (
+                id INTEGER PRIMARY KEY,
+                item_code TEXT NOT NULL UNIQUE,
+                name TEXT NOT NULL,
+                price INTEGER NOT NULL,
+                image_url TEXT NOT NULL,
+                affiliate_url TEXT NOT NULL,
+                display_order INTEGER DEFAULT 0,
+                is_active INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # インデックス作成
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_rakuten_products_order ON rakuten_products(display_order)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_rakuten_products_active ON rakuten_products(is_active)")
+
+        conn.commit()
+        print("Migration v6 (rakuten_products) completed")
+
+
 def init_shops():
     """ショップマスタ初期データ投入"""
     shops = [
@@ -1326,12 +1384,223 @@ def get_admin_stats() -> dict:
         return stats
 
 
+# =============================================================================
+# Amazon商品操作
+# =============================================================================
+
+from models import AmazonProduct
+
+
+def get_amazon_products(active_only: bool = True) -> list[AmazonProduct]:
+    """Amazon商品一覧を取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        if active_only:
+            cursor.execute("SELECT * FROM amazon_products WHERE is_active = 1 ORDER BY display_order")
+        else:
+            cursor.execute("SELECT * FROM amazon_products ORDER BY display_order")
+        rows = cursor.fetchall()
+        return [AmazonProduct(**dict(row)) for row in rows]
+
+
+def get_amazon_product_by_id(product_id: int) -> Optional[AmazonProduct]:
+    """IDでAmazon商品を取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM amazon_products WHERE id = ?", (product_id,))
+        row = cursor.fetchone()
+        if row:
+            return AmazonProduct(**dict(row))
+        return None
+
+
+def add_amazon_product(asin: str, name: str, price: int, image_url: str, affiliate_tag: str) -> AmazonProduct:
+    """Amazon商品を追加"""
+    affiliate_url = f"https://www.amazon.co.jp/dp/{asin}?tag={affiliate_tag}"
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # 現在の最大display_orderを取得
+        cursor.execute("SELECT MAX(display_order) FROM amazon_products")
+        max_order = cursor.fetchone()[0] or 0
+
+        cursor.execute("""
+            INSERT INTO amazon_products (asin, name, price, image_url, affiliate_url, display_order)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (asin, name, price, image_url, affiliate_url, max_order + 1))
+
+        conn.commit()
+        product_id = cursor.lastrowid
+
+        return get_amazon_product_by_id(product_id)
+
+
+def update_amazon_product(product_id: int, name: str = None, price: int = None,
+                          image_url: str = None, is_active: int = None) -> Optional[AmazonProduct]:
+    """Amazon商品を更新"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        updates = []
+        params = []
+
+        if name is not None:
+            updates.append("name = ?")
+            params.append(name)
+        if price is not None:
+            updates.append("price = ?")
+            params.append(price)
+        if image_url is not None:
+            updates.append("image_url = ?")
+            params.append(image_url)
+        if is_active is not None:
+            updates.append("is_active = ?")
+            params.append(is_active)
+
+        if updates:
+            updates.append("updated_at = CURRENT_TIMESTAMP")
+            params.append(product_id)
+
+            cursor.execute(f"""
+                UPDATE amazon_products SET {', '.join(updates)} WHERE id = ?
+            """, params)
+            conn.commit()
+
+    return get_amazon_product_by_id(product_id)
+
+
+def delete_amazon_product(product_id: int) -> bool:
+    """Amazon商品を削除"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM amazon_products WHERE id = ?", (product_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def reorder_amazon_products(product_ids: list[int]):
+    """Amazon商品の表示順を更新"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        for order, product_id in enumerate(product_ids):
+            cursor.execute(
+                "UPDATE amazon_products SET display_order = ? WHERE id = ?",
+                (order, product_id)
+            )
+        conn.commit()
+
+
+# ==================== 楽天商品関連 ====================
+
+from models import RakutenProduct
+
+
+def get_rakuten_products(active_only: bool = True) -> list[RakutenProduct]:
+    """楽天商品一覧を取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        if active_only:
+            cursor.execute("SELECT * FROM rakuten_products WHERE is_active = 1 ORDER BY display_order")
+        else:
+            cursor.execute("SELECT * FROM rakuten_products ORDER BY display_order")
+        rows = cursor.fetchall()
+        return [RakutenProduct(**dict(row)) for row in rows]
+
+
+def get_rakuten_product_by_id(product_id: int) -> Optional[RakutenProduct]:
+    """IDで楽天商品を取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM rakuten_products WHERE id = ?", (product_id,))
+        row = cursor.fetchone()
+        if row:
+            return RakutenProduct(**dict(row))
+        return None
+
+
+def add_rakuten_product(item_code: str, name: str, price: int, image_url: str, affiliate_url: str) -> RakutenProduct:
+    """楽天商品を追加"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # 現在の最大display_orderを取得
+        cursor.execute("SELECT MAX(display_order) FROM rakuten_products")
+        max_order = cursor.fetchone()[0] or 0
+
+        cursor.execute("""
+            INSERT INTO rakuten_products (item_code, name, price, image_url, affiliate_url, display_order)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (item_code, name, price, image_url, affiliate_url, max_order + 1))
+
+        conn.commit()
+        product_id = cursor.lastrowid
+
+        return get_rakuten_product_by_id(product_id)
+
+
+def update_rakuten_product(product_id: int, name: str = None, price: int = None,
+                           image_url: str = None, is_active: int = None) -> Optional[RakutenProduct]:
+    """楽天商品を更新"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        updates = []
+        params = []
+
+        if name is not None:
+            updates.append("name = ?")
+            params.append(name)
+        if price is not None:
+            updates.append("price = ?")
+            params.append(price)
+        if image_url is not None:
+            updates.append("image_url = ?")
+            params.append(image_url)
+        if is_active is not None:
+            updates.append("is_active = ?")
+            params.append(is_active)
+
+        if updates:
+            updates.append("updated_at = CURRENT_TIMESTAMP")
+            params.append(product_id)
+
+            cursor.execute(f"""
+                UPDATE rakuten_products SET {', '.join(updates)} WHERE id = ?
+            """, params)
+            conn.commit()
+
+    return get_rakuten_product_by_id(product_id)
+
+
+def delete_rakuten_product(product_id: int) -> bool:
+    """楽天商品を削除"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM rakuten_products WHERE id = ?", (product_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def reorder_rakuten_products(product_ids: list[int]):
+    """楽天商品の表示順を更新"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        for order, product_id in enumerate(product_ids):
+            cursor.execute(
+                "UPDATE rakuten_products SET display_order = ? WHERE id = ?",
+                (order, product_id)
+            )
+        conn.commit()
+
+
 if __name__ == "__main__":
     # 直接実行時にDB初期化
     init_database()
     migrate_v2()  # v2マイグレーション追加
     migrate_v3_auth()  # v3認証マイグレーション追加
     migrate_v4_featured_keywords()  # v4人気キーワードマイグレーション追加
+    migrate_v5_amazon_products()  # v5 Amazon商品マイグレーション追加
     init_shops()
     print("\nDatabase stats:")
     print(get_database_stats())

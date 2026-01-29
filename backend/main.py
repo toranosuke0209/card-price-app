@@ -57,6 +57,7 @@ from database import (
     migrate_v2,
     migrate_v3_auth,
     migrate_v4_featured_keywords,
+    migrate_v5_amazon_products,
     get_all_shops,
     get_shop_by_name,
     get_latest_prices_by_keyword,
@@ -94,6 +95,13 @@ from database import (
     update_featured_keyword,
     delete_featured_keyword,
     reorder_featured_keywords,
+    # Amazon商品関連
+    get_amazon_products,
+    get_amazon_product_by_id,
+    add_amazon_product,
+    update_amazon_product,
+    delete_amazon_product,
+    reorder_amazon_products,
 )
 
 from auth import (
@@ -124,6 +132,7 @@ async def startup():
     migrate_v2()  # v2マイグレーション実行
     migrate_v3_auth()  # v3認証マイグレーション実行
     migrate_v4_featured_keywords()  # v4人気キーワードマイグレーション実行
+    migrate_v5_amazon_products()  # v5 Amazon商品マイグレーション実行
     init_shops()
 
 
@@ -143,6 +152,36 @@ async def login_page():
 async def admin_page():
     """管理者ページを返す"""
     return FileResponse(frontend_path / "admin.html")
+
+
+@app.get("/search")
+async def search_page():
+    """検索結果ページを返す"""
+    return FileResponse(frontend_path / "search.html")
+
+
+@app.get("/privacy")
+async def privacy_page():
+    """プライバシーポリシーページを返す"""
+    return FileResponse(frontend_path / "privacy.html")
+
+
+@app.get("/about")
+async def about_page():
+    """このサイトについてページを返す"""
+    return FileResponse(frontend_path / "about.html")
+
+
+@app.get("/robots.txt")
+async def robots_txt():
+    """robots.txtを返す"""
+    return FileResponse(frontend_path / "robots.txt", media_type="text/plain")
+
+
+@app.get("/ads.txt")
+async def ads_txt():
+    """ads.txtを返す"""
+    return FileResponse(frontend_path / "ads.txt", media_type="text/plain")
 
 
 @app.get("/api/image-proxy")
@@ -180,49 +219,70 @@ async def image_proxy(url: str = Query(..., description="画像URL")):
 
 
 @app.get("/api/search")
-async def search(keyword: str = Query(..., min_length=1, description="検索キーワード")):
+async def search(
+    keyword: str = Query(..., min_length=1, description="検索キーワード"),
+    page: int = Query(1, ge=1, description="ページ番号"),
+    per_page: int = Query(20, ge=1, le=100, description="1ページあたりの件数"),
+    sort: str = Query("price-asc", description="ソート順"),
+    stock: str = Query("all", description="在庫フィルター")
+):
     """
     キーワードで商品を検索（DB参照）
 
     - keyword: 検索キーワード（必須）
-
-    レスポンス形式は旧API互換を維持
+    - page: ページ番号（デフォルト: 1）
+    - per_page: 1ページあたりの件数（デフォルト: 20、最大: 100）
+    - sort: ソート順（price-asc, price-desc, site）
+    - stock: 在庫フィルター（all, in-stock, out-of-stock）
     """
-    # DBから最新価格を取得
-    prices = get_latest_prices_by_keyword(keyword, limit=200)
+    # DBから最新価格を取得（全件取得してからフィルタ・ソート）
+    prices = get_latest_prices_by_keyword(keyword, limit=500)
 
-    # 検索ログを記録
-    record_search(keyword, len(prices))
+    # 検索ログを記録（初回ページのみ）
+    if page == 1:
+        record_search(keyword, len(prices))
 
-    # 結果が少なければキーワードを自動追加（次回バッチで取得される）
-    if len(prices) < 5:
-        add_keyword_if_new(keyword)
-        # キューにも追加（batch_queue.pyで処理される）
-        add_to_fetch_queue(keyword, source='search', priority=0)
+        # 結果が少なければキーワードを自動追加（次回バッチで取得される）
+        if len(prices) < 5:
+            add_keyword_if_new(keyword)
+            # キューにも追加（batch_queue.pyで処理される）
+            add_to_fetch_queue(keyword, source='search', priority=0)
 
-    # サイト別にグループ化（旧API互換形式）
-    site_items = {}
-    for price in prices:
-        site_name = price.shop_name
-        if site_name not in site_items:
-            site_items[site_name] = []
-        site_items[site_name].append(price.to_dict())
+    # フラット化してリストに変換
+    all_items = [price.to_dict() for price in prices]
 
-    # 全ショップのリストを取得（データがないショップも含める）
-    all_shops = get_all_shops()
-    site_results = []
+    # 在庫フィルター
+    if stock == "in-stock":
+        all_items = [item for item in all_items if item.get("stock", 0) > 0]
+    elif stock == "out-of-stock":
+        all_items = [item for item in all_items if item.get("stock", 0) == 0]
 
-    for shop in all_shops:
-        items = site_items.get(shop.name, [])
-        site_results.append({
-            "site": shop.name,
-            "items": items
-        })
+    # ソート
+    if sort == "price-asc":
+        all_items.sort(key=lambda x: x.get("price", 0))
+    elif sort == "price-desc":
+        all_items.sort(key=lambda x: x.get("price", 0), reverse=True)
+    elif sort == "site":
+        all_items.sort(key=lambda x: x.get("site", ""))
+
+    # 総件数
+    total_count = len(all_items)
+    total_pages = (total_count + per_page - 1) // per_page
+
+    # ページネーション
+    start = (page - 1) * per_page
+    end = start + per_page
+    paginated_items = all_items[start:end]
 
     return {
         "keyword": keyword,
-        "results": site_results,
-        "total_count": len(prices)
+        "items": paginated_items,
+        "total_count": total_count,
+        "page": page,
+        "per_page": per_page,
+        "total_pages": total_pages,
+        "sort": sort,
+        "stock": stock
     }
 
 
@@ -386,7 +446,7 @@ async def register(user_data: UserCreate):
 
     # トークン発行
     access_token = create_access_token(
-        data={"sub": user.id, "username": user.username}
+        data={"sub": str(user.id), "username": user.username}
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -405,7 +465,7 @@ async def login(login_data: UserLogin):
         )
 
     access_token = create_access_token(
-        data={"sub": user.id, "username": user.username}
+        data={"sub": str(user.id), "username": user.username}
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -474,7 +534,7 @@ async def admin_register(admin_data: AdminRegister):
 
     # トークン発行
     access_token = create_access_token(
-        data={"sub": user.id, "username": user.username}
+        data={"sub": str(user.id), "username": user.username}
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -803,6 +863,249 @@ async def update_all_keyword_prices_api(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"価格更新に失敗しました: {str(e)}"
         )
+
+
+# =============================================================================
+# Amazon商品API
+# =============================================================================
+
+AMAZON_AFFILIATE_TAG = "bsprice-22"
+
+
+class AmazonProductCreate(BaseModel):
+    url: str  # AmazonのURL（ASINを抽出する）
+    name: str
+    price: int
+    image_url: str
+
+
+class AmazonProductUpdate(BaseModel):
+    name: Optional[str] = None
+    price: Optional[int] = None
+    image_url: Optional[str] = None
+    is_active: Optional[int] = None
+
+
+class AmazonProductReorder(BaseModel):
+    product_ids: list[int]
+
+
+def extract_asin_from_url(url: str) -> Optional[str]:
+    """AmazonのURLからASINを抽出"""
+    import re
+    # /dp/ASIN or /gp/product/ASIN パターン
+    patterns = [
+        r'/dp/([A-Z0-9]{10})',
+        r'/gp/product/([A-Z0-9]{10})',
+        r'/product/([A-Z0-9]{10})',
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, url)
+        if match:
+            return match.group(1)
+    return None
+
+
+@app.get("/api/amazon-products")
+async def list_amazon_products():
+    """Amazon商品一覧を取得（公開API）"""
+    products = get_amazon_products(active_only=True)
+    return {"products": [p.to_dict() for p in products]}
+
+
+@app.get("/api/admin/amazon-products")
+async def list_amazon_products_admin(admin_user: User = Depends(require_admin)):
+    """Amazon商品一覧を取得（管理者用、非アクティブも含む）"""
+    products = get_amazon_products(active_only=False)
+    return {"products": [p.to_dict() for p in products]}
+
+
+@app.post("/api/admin/amazon-products")
+async def create_amazon_product(
+    data: AmazonProductCreate,
+    admin_user: User = Depends(require_admin)
+):
+    """Amazon商品を追加"""
+    # ASINを抽出
+    asin = extract_asin_from_url(data.url)
+    if not asin:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="AmazonのURLからASINを抽出できませんでした"
+        )
+
+    try:
+        product = add_amazon_product(
+            asin=asin,
+            name=data.name,
+            price=data.price,
+            image_url=data.image_url,
+            affiliate_tag=AMAZON_AFFILIATE_TAG
+        )
+        return {"message": "商品を追加しました", "product": product.to_dict()}
+    except Exception as e:
+        if "UNIQUE constraint failed" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="この商品は既に登録されています"
+            )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"追加に失敗しました: {str(e)}"
+        )
+
+
+@app.put("/api/admin/amazon-products/{product_id}")
+async def update_amazon_product_api(
+    product_id: int,
+    data: AmazonProductUpdate,
+    admin_user: User = Depends(require_admin)
+):
+    """Amazon商品を更新"""
+    product = update_amazon_product(
+        product_id,
+        name=data.name,
+        price=data.price,
+        image_url=data.image_url,
+        is_active=data.is_active
+    )
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="商品が見つかりません"
+        )
+    return {"message": "商品を更新しました", "product": product.to_dict()}
+
+
+@app.delete("/api/admin/amazon-products/{product_id}")
+async def delete_amazon_product_api(
+    product_id: int,
+    admin_user: User = Depends(require_admin)
+):
+    """Amazon商品を削除"""
+    success = delete_amazon_product(product_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="商品が見つかりません"
+        )
+    return {"message": "商品を削除しました"}
+
+
+@app.post("/api/admin/amazon-products/reorder")
+async def reorder_amazon_products_api(
+    data: AmazonProductReorder,
+    admin_user: User = Depends(require_admin)
+):
+    """Amazon商品の表示順を変更"""
+    reorder_amazon_products(data.product_ids)
+    return {"message": "表示順を更新しました"}
+
+
+# ==================== 楽天商品API ====================
+
+from database import (
+    get_rakuten_products, get_rakuten_product_by_id, add_rakuten_product,
+    update_rakuten_product, delete_rakuten_product, reorder_rakuten_products
+)
+
+RAKUTEN_AFFILIATE_ID = "507d6316.932e0e43.507d6317.e71fdd26"
+
+
+class RakutenProductCreate(BaseModel):
+    name: str
+    price: int
+    image_url: str
+    affiliate_url: str
+
+
+class RakutenProductUpdate(BaseModel):
+    name: Optional[str] = None
+    price: Optional[int] = None
+    image_url: Optional[str] = None
+    is_active: Optional[int] = None
+
+
+class RakutenProductReorder(BaseModel):
+    product_ids: list[int]
+
+
+@app.get("/api/rakuten-products")
+async def list_rakuten_products():
+    """楽天商品一覧を取得（公開API）"""
+    products = get_rakuten_products(active_only=True)
+    return {"products": [p.to_dict() for p in products]}
+
+
+@app.get("/api/admin/rakuten-products")
+async def list_rakuten_products_admin(admin_user: User = Depends(require_admin)):
+    """楽天商品一覧を取得（管理者用、非アクティブも含む）"""
+    products = get_rakuten_products(active_only=False)
+    return {"products": [p.to_dict() for p in products]}
+
+
+@app.post("/api/admin/rakuten-products")
+async def create_rakuten_product(
+    data: RakutenProductCreate,
+    admin_user: User = Depends(require_admin)
+):
+    """楽天商品を追加"""
+    # URLから商品コードを抽出（簡易的に）
+    import re
+    item_code_match = re.search(r'item\.rakuten\.co\.jp/([^/]+)/([^/]+)', data.affiliate_url)
+    if item_code_match:
+        item_code = f"{item_code_match.group(1)}_{item_code_match.group(2)}"
+    else:
+        item_code = str(hash(data.affiliate_url))[:16]
+
+    product = add_rakuten_product(
+        item_code=item_code,
+        name=data.name,
+        price=data.price,
+        image_url=data.image_url,
+        affiliate_url=data.affiliate_url
+    )
+    return {"product": product.to_dict()}
+
+
+@app.put("/api/admin/rakuten-products/{product_id}")
+async def update_rakuten_product_api(
+    product_id: int,
+    data: RakutenProductUpdate,
+    admin_user: User = Depends(require_admin)
+):
+    """楽天商品を更新"""
+    product = update_rakuten_product(
+        product_id,
+        name=data.name,
+        price=data.price,
+        image_url=data.image_url,
+        is_active=data.is_active
+    )
+    if not product:
+        raise HTTPException(status_code=404, detail="商品が見つかりません")
+    return {"product": product.to_dict()}
+
+
+@app.delete("/api/admin/rakuten-products/{product_id}")
+async def delete_rakuten_product_api(
+    product_id: int,
+    admin_user: User = Depends(require_admin)
+):
+    """楽天商品を削除"""
+    if delete_rakuten_product(product_id):
+        return {"message": "削除しました"}
+    raise HTTPException(status_code=404, detail="商品が見つかりません")
+
+
+@app.post("/api/admin/rakuten-products/reorder")
+async def reorder_rakuten_products_api(
+    data: RakutenProductReorder,
+    admin_user: User = Depends(require_admin)
+):
+    """楽天商品の表示順を変更"""
+    reorder_rakuten_products(data.product_ids)
+    return {"message": "表示順を更新しました"}
 
 
 if __name__ == "__main__":
