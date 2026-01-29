@@ -322,11 +322,25 @@ const Favorites = {
  */
 async function updateUserMenu() {
     const userMenuEl = document.getElementById('user-menu');
-    if (!userMenuEl) return;
+    if (!userMenuEl) {
+        console.log('[Auth] user-menu element not found');
+        return;
+    }
+
+    console.log('[Auth] updateUserMenu called, isLoggedIn:', Auth.isLoggedIn());
 
     if (Auth.isLoggedIn()) {
-        const user = Auth.getUser() || await Auth.fetchCurrentUser();
+        let user = Auth.getUser();
+        console.log('[Auth] cached user:', user);
+
+        if (!user) {
+            console.log('[Auth] fetching user from API...');
+            user = await Auth.fetchCurrentUser();
+            console.log('[Auth] fetched user:', user);
+        }
+
         if (user) {
+            console.log('[Auth] rendering user menu for:', user.username);
             userMenuEl.innerHTML = `
                 <div class="user-menu-dropdown">
                     <button class="user-menu-btn">
@@ -356,9 +370,11 @@ async function updateUserMenu() {
             }
         } else {
             // トークンが無効な場合
+            console.log('[Auth] user is null, showing login button');
             showLoginButton(userMenuEl);
         }
     } else {
+        console.log('[Auth] not logged in, showing login button');
         showLoginButton(userMenuEl);
     }
 }
