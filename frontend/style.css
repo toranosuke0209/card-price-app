@@ -3431,3 +3431,201 @@ a.featured-keyword-tag {
         font-size: 0.75rem;
     }
 }
+
+/* カード統合機能 */
+.card-group-create {
+    background: var(--bg-card);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border-dark);
+}
+
+.card-group-create h3 {
+    margin-bottom: 15px;
+    font-size: 1rem;
+    color: var(--text-primary);
+}
+
+.group-search-results {
+    max-height: 300px;
+    overflow-y: auto;
+    margin: 15px 0;
+    border: 1px solid var(--border-dark);
+    border-radius: 8px;
+}
+
+.group-search-item {
+    padding: 12px 15px;
+    border-bottom: 1px solid var(--border-dark);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.group-search-item:hover {
+    background: var(--bg-card-hover);
+}
+
+.group-search-item.selected {
+    background: rgba(59, 130, 246, 0.2);
+    border-left: 3px solid var(--sapphire);
+}
+
+.search-item-name {
+    font-weight: 500;
+    margin-bottom: 5px;
+}
+
+.search-item-meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.card-no-badge, .shop-badge, .price-badge {
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.card-no-badge {
+    background: var(--sapphire);
+    color: white;
+}
+
+.shop-badge {
+    background: rgba(139, 92, 246, 0.2);
+    color: #a78bfa;
+}
+
+.price-badge {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+}
+
+.group-selected-cards {
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    padding: 15px;
+    margin: 15px 0;
+}
+
+.group-selected-cards h4 {
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+    color: var(--text-secondary);
+}
+
+.selected-card-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: var(--bg-card);
+    border-radius: 6px;
+    margin-bottom: 8px;
+}
+
+.selected-card-item .card-name {
+    flex: 1;
+}
+
+.selected-card-item .card-no {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.selected-card-item .remove-btn {
+    background: none;
+    border: none;
+    color: #ef4444;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0 5px;
+}
+
+.empty-message {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.card-group-list {
+    margin-top: 30px;
+}
+
+.card-group-list h3 {
+    margin-bottom: 15px;
+    font-size: 1rem;
+}
+
+.card-group-item {
+    background: var(--bg-card);
+    border-radius: 8px;
+    margin-bottom: 10px;
+    border: 1px solid var(--border-dark);
+    overflow: hidden;
+}
+
+.group-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 15px;
+}
+
+.group-name {
+    flex: 1;
+    font-weight: 500;
+}
+
+.group-count {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.group-detail {
+    border-top: 1px solid var(--border-dark);
+    padding: 15px;
+    background: var(--bg-secondary);
+}
+
+.group-member-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-dark);
+}
+
+.group-member-item:last-child {
+    border-bottom: none;
+}
+
+.member-name {
+    flex: 1;
+}
+
+.member-no {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.member-price {
+    color: var(--sapphire);
+    font-weight: 500;
+}
+
+.admin-btn-small {
+    padding: 4px 10px;
+    font-size: 0.8rem;
+}
+
+.admin-btn-secondary {
+    background: var(--bg-secondary);
+    border-color: var(--border-dark);
+}
+
+.admin-btn-danger {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    border-color: #ef4444;
+}

@@ -1377,6 +1377,120 @@ async def update_user_role_api(
     return {"message": f"{action}しました", "user": user.to_dict()}
 
 
+# =============================================================================
+# カードグループ管理API（カード統合機能）
+# =============================================================================
+
+@app.get("/api/admin/card-groups")
+async def list_card_groups(admin_user: User = Depends(require_admin)):
+    """カードグループ一覧を取得"""
+    groups = get_card_groups()
+    return {"groups": groups}
+
+
+class CardGroupCreate(BaseModel):
+    name: str
+    card_ids: list[int] = []
+
+
+@app.post("/api/admin/card-groups")
+async def create_card_group(
+    data: CardGroupCreate,
+    admin_user: User = Depends(require_admin)
+):
+    """新しいカードグループを作成"""
+    if not data.name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="グループ名は必須です"
+        )
+
+    group_id = add_card_to_group(card_id=None, group_id=None, group_name=data.name)
+
+    # カードを追加
+    for card_id in data.card_ids:
+        add_card_to_group(card_id=card_id, group_id=group_id)
+
+    return {"message": "グループを作成しました", "group_id": group_id}
+
+
+@app.get("/api/admin/card-groups/{group_id}/members")
+async def get_card_group_members(
+    group_id: int,
+    admin_user: User = Depends(require_admin)
+):
+    """グループに属するカードを取得"""
+    members = get_group_members(group_id)
+    return {"members": members}
+
+
+class CardGroupMemberAdd(BaseModel):
+    card_id: int
+
+
+@app.post("/api/admin/card-groups/{group_id}/members")
+async def add_card_to_group_api(
+    group_id: int,
+    data: CardGroupMemberAdd,
+    admin_user: User = Depends(require_admin)
+):
+    """カードをグループに追加"""
+    add_card_to_group(card_id=data.card_id, group_id=group_id)
+    return {"message": "カードをグループに追加しました"}
+
+
+@app.delete("/api/admin/card-groups/{group_id}/members/{card_id}")
+async def remove_card_from_group_api(
+    group_id: int,
+    card_id: int,
+    admin_user: User = Depends(require_admin)
+):
+    """カードをグループから削除"""
+    remove_card_from_group(card_id=card_id, group_id=group_id)
+    return {"message": "カードをグループから削除しました"}
+
+
+@app.delete("/api/admin/card-groups/{group_id}")
+async def delete_card_group_api(
+    group_id: int,
+    admin_user: User = Depends(require_admin)
+):
+    """カードグループを削除"""
+    delete_card_group(group_id)
+    return {"message": "グループを削除しました"}
+
+
+@app.get("/api/admin/cards/search")
+async def search_cards_for_grouping(
+    q: str = Query(..., min_length=1, description="検索キーワード"),
+    admin_user: User = Depends(require_admin)
+):
+    """カード統合用のカード検索（番号なしカード優先）"""
+    from database import search_cards, get_connection
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        keyword_normalized = q.lower()
+
+        # カード番号がないカードを優先して検索
+        cursor.execute("""
+            SELECT c.*, MIN(p.price) as min_price, s.name as shop_name
+            FROM cards c
+            LEFT JOIN prices p ON c.id = p.card_id
+            LEFT JOIN shops s ON p.shop_id = s.id
+            WHERE c.name_normalized LIKE ?
+            GROUP BY c.id
+            ORDER BY
+                CASE WHEN c.extracted_card_no IS NULL THEN 0 ELSE 1 END,
+                c.name
+            LIMIT 50
+        """, (f"%{keyword_normalized}%",))
+
+        cards = [dict(row) for row in cursor.fetchall()]
+
+    return {"cards": cards}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

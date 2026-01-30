@@ -136,6 +136,50 @@
                         <div id="card-list" class="card-list"></div>
                         <div id="card-pagination" class="pagination"></div>
                     </div>
+
+                    <!-- カード統合 -->
+                    <div class="admin-section">
+                        <h2>カード統合（名寄せ）</h2>
+                        <p class="section-desc">
+                            異なるショップで別名になっているカードを手動でグループ化します。<br>
+                            同じグループのカードは詳細ページで価格が統合表示されます。
+                        </p>
+
+                        <!-- グループ作成 -->
+                        <div class="card-group-create">
+                            <h3>新規グループ作成</h3>
+                            <div class="form-row">
+                                <div class="form-group" style="flex: 2;">
+                                    <label>カード検索</label>
+                                    <input type="text" id="group-card-search" placeholder="統合したいカード名を検索..." onkeyup="handleGroupCardSearch(event)">
+                                </div>
+                                <div class="form-group" style="flex: 1;">
+                                    <label>グループ名</label>
+                                    <input type="text" id="group-name" placeholder="例: ジークフリード">
+                                </div>
+                            </div>
+
+                            <!-- 検索結果 -->
+                            <div id="group-search-results" class="group-search-results"></div>
+
+                            <!-- 選択済みカード -->
+                            <div id="group-selected-cards" class="group-selected-cards">
+                                <h4>統合するカード（<span id="selected-count">0</span>件選択中）</h4>
+                                <div id="selected-cards-list"></div>
+                            </div>
+
+                            <button class="admin-btn" onclick="handleCreateGroup()" id="create-group-btn" disabled>グループを作成</button>
+                            <div class="form-error" id="group-error"></div>
+                            <div class="form-success" id="group-success"></div>
+                        </div>
+
+                        <!-- 既存グループ一覧 -->
+                        <div class="card-group-list">
+                            <h3>既存グループ一覧</h3>
+                            <button class="admin-btn admin-btn-secondary" onclick="loadCardGroups()">更新</button>
+                            <div id="card-groups-list"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- コンテンツ管理タブ -->
@@ -405,6 +449,8 @@
             loadAmazonProducts();
             loadRakutenProducts();
             loadAnalytics();
+            loadCardGroups();
+            updateSelectedCardsDisplay();
             loadUsers();
         });
 
@@ -1656,6 +1702,253 @@
             }).catch(() => {
                 prompt('招待コード:', code);
             });
+        }
+
+        // ===========================================
+        // カード統合機能
+        // ===========================================
+
+        let selectedCardsForGroup = [];
+        let groupSearchTimeout = null;
+
+        // カード検索（統合用）
+        function handleGroupCardSearch(event) {
+            clearTimeout(groupSearchTimeout);
+            const query = event.target.value.trim();
+
+            if (query.length < 2) {
+                document.getElementById('group-search-results').innerHTML = '';
+                return;
+            }
+
+            groupSearchTimeout = setTimeout(() => {
+                searchCardsForGroup(query);
+            }, 300);
+        }
+
+        async function searchCardsForGroup(query) {
+            const resultsEl = document.getElementById('group-search-results');
+            resultsEl.innerHTML = '<p>検索中...</p>';
+
+            try {
+                const response = await fetch(`/api/admin/cards/search?q=${encodeURIComponent(query)}`, {
+                    headers: { 'Authorization': `Bearer ${Auth.getToken()}` }
+                });
+
+                if (!response.ok) throw new Error('検索に失敗しました');
+
+                const data = await response.json();
+
+                if (data.cards.length === 0) {
+                    resultsEl.innerHTML = '<p>カードが見つかりません</p>';
+                    return;
+                }
+
+                resultsEl.innerHTML = data.cards.map(card => {
+                    const isSelected = selectedCardsForGroup.some(c => c.id === card.id);
+                    const cardNo = card.extracted_card_no || '番号なし';
+                    const shopName = card.shop_name || '';
+                    const minPrice = card.min_price ? `${card.min_price.toLocaleString()}円` : '';
+
+                    return `
+                        <div class="group-search-item ${isSelected ? 'selected' : ''}"
+                             onclick="toggleCardSelection(${card.id}, '${escapeHtml(card.name)}', '${cardNo}')">
+                            <div class="search-item-name">${escapeHtml(card.name)}</div>
+                            <div class="search-item-meta">
+                                <span class="card-no-badge">${cardNo}</span>
+                                ${shopName ? `<span class="shop-badge">${shopName}</span>` : ''}
+                                ${minPrice ? `<span class="price-badge">${minPrice}</span>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                resultsEl.innerHTML = `<p class="error">${error.message}</p>`;
+            }
+        }
+
+        function toggleCardSelection(cardId, cardName, cardNo) {
+            const index = selectedCardsForGroup.findIndex(c => c.id === cardId);
+
+            if (index >= 0) {
+                selectedCardsForGroup.splice(index, 1);
+            } else {
+                selectedCardsForGroup.push({ id: cardId, name: cardName, cardNo: cardNo });
+            }
+
+            updateSelectedCardsDisplay();
+
+            // 検索結果の選択状態も更新
+            const searchItems = document.querySelectorAll('.group-search-item');
+            searchItems.forEach(item => {
+                const onclick = item.getAttribute('onclick');
+                if (onclick && onclick.includes(`(${cardId},`)) {
+                    item.classList.toggle('selected', selectedCardsForGroup.some(c => c.id === cardId));
+                }
+            });
+        }
+
+        function updateSelectedCardsDisplay() {
+            const listEl = document.getElementById('selected-cards-list');
+            const countEl = document.getElementById('selected-count');
+            const createBtn = document.getElementById('create-group-btn');
+
+            countEl.textContent = selectedCardsForGroup.length;
+            createBtn.disabled = selectedCardsForGroup.length < 2;
+
+            if (selectedCardsForGroup.length === 0) {
+                listEl.innerHTML = '<p class="empty-message">統合するカードを選択してください（2件以上）</p>';
+                return;
+            }
+
+            listEl.innerHTML = selectedCardsForGroup.map(card => `
+                <div class="selected-card-item">
+                    <span class="card-name">${escapeHtml(card.name)}</span>
+                    <span class="card-no">${card.cardNo}</span>
+                    <button class="remove-btn" onclick="toggleCardSelection(${card.id}, '', '')">&times;</button>
+                </div>
+            `).join('');
+        }
+
+        async function handleCreateGroup() {
+            const nameEl = document.getElementById('group-name');
+            const errorEl = document.getElementById('group-error');
+            const successEl = document.getElementById('group-success');
+
+            errorEl.textContent = '';
+            successEl.textContent = '';
+
+            const groupName = nameEl.value.trim() || selectedCardsForGroup[0]?.name || 'グループ';
+
+            if (selectedCardsForGroup.length < 2) {
+                errorEl.textContent = '2件以上のカードを選択してください';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/admin/card-groups', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${Auth.getToken()}`
+                    },
+                    body: JSON.stringify({
+                        name: groupName,
+                        card_ids: selectedCardsForGroup.map(c => c.id)
+                    })
+                });
+
+                if (!response.ok) throw new Error('グループの作成に失敗しました');
+
+                successEl.textContent = 'グループを作成しました';
+                selectedCardsForGroup = [];
+                nameEl.value = '';
+                document.getElementById('group-card-search').value = '';
+                document.getElementById('group-search-results').innerHTML = '';
+                updateSelectedCardsDisplay();
+                loadCardGroups();
+            } catch (error) {
+                errorEl.textContent = error.message;
+            }
+        }
+
+        async function loadCardGroups() {
+            const listEl = document.getElementById('card-groups-list');
+            listEl.innerHTML = '<p>読み込み中...</p>';
+
+            try {
+                const response = await fetch('/api/admin/card-groups', {
+                    headers: { 'Authorization': `Bearer ${Auth.getToken()}` }
+                });
+
+                if (!response.ok) throw new Error('読み込みに失敗しました');
+
+                const data = await response.json();
+
+                if (data.groups.length === 0) {
+                    listEl.innerHTML = '<p>グループがありません</p>';
+                    return;
+                }
+
+                listEl.innerHTML = data.groups.map(group => `
+                    <div class="card-group-item">
+                        <div class="group-header">
+                            <span class="group-name">${escapeHtml(group.name)}</span>
+                            <span class="group-count">${group.member_count}件</span>
+                            <button class="admin-btn admin-btn-small" onclick="toggleGroupDetail(${group.id})">詳細</button>
+                            <button class="admin-btn admin-btn-danger admin-btn-small" onclick="handleDeleteGroup(${group.id})">削除</button>
+                        </div>
+                        <div class="group-detail" id="group-detail-${group.id}" style="display: none;"></div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                listEl.innerHTML = `<p class="error">${error.message}</p>`;
+            }
+        }
+
+        async function toggleGroupDetail(groupId) {
+            const detailEl = document.getElementById(`group-detail-${groupId}`);
+
+            if (detailEl.style.display === 'block') {
+                detailEl.style.display = 'none';
+                return;
+            }
+
+            detailEl.innerHTML = '<p>読み込み中...</p>';
+            detailEl.style.display = 'block';
+
+            try {
+                const response = await fetch(`/api/admin/card-groups/${groupId}/members`, {
+                    headers: { 'Authorization': `Bearer ${Auth.getToken()}` }
+                });
+
+                if (!response.ok) throw new Error('読み込みに失敗しました');
+
+                const data = await response.json();
+
+                detailEl.innerHTML = data.members.map(card => `
+                    <div class="group-member-item">
+                        <span class="member-name">${escapeHtml(card.name)}</span>
+                        <span class="member-no">${card.extracted_card_no || '番号なし'}</span>
+                        <span class="member-price">${card.min_price ? card.min_price.toLocaleString() + '円' : ''}</span>
+                        <button class="admin-btn admin-btn-danger admin-btn-small" onclick="handleRemoveFromGroup(${groupId}, ${card.id})">除外</button>
+                    </div>
+                `).join('');
+            } catch (error) {
+                detailEl.innerHTML = `<p class="error">${error.message}</p>`;
+            }
+        }
+
+        async function handleDeleteGroup(groupId) {
+            if (!confirm('このグループを削除しますか？')) return;
+
+            try {
+                const response = await fetch(`/api/admin/card-groups/${groupId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${Auth.getToken()}` }
+                });
+
+                if (!response.ok) throw new Error('削除に失敗しました');
+
+                loadCardGroups();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        async function handleRemoveFromGroup(groupId, cardId) {
+            try {
+                const response = await fetch(`/api/admin/card-groups/${groupId}/members/${cardId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${Auth.getToken()}` }
+                });
+
+                if (!response.ok) throw new Error('削除に失敗しました');
+
+                toggleGroupDetail(groupId);  // 詳細を再読み込み
+            } catch (error) {
+                alert(error.message);
+            }
         }
 
         // ユーティリティ
