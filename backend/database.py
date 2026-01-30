@@ -26,6 +26,65 @@ def normalize_card_name(name: str) -> str:
     return normalized
 
 
+import re
+
+def extract_card_number(name: str) -> Optional[str]:
+    """
+    カード名からカード番号を抽出
+
+    パターン例:
+    - BS01-001, BSC48-X02 (ブースター)
+    - SD01-001 (スターター)
+    - CB01-001 (コラボ)
+    - PB01-001, P-001 (プロモ)
+    - LM01-001 (リミテッド)
+    - CP01-001 (キャンペーン)
+    """
+    # NFKC正規化（全角→半角）
+    normalized = unicodedata.normalize("NFKC", name)
+
+    # カード番号パターン（優先度順）
+    patterns = [
+        # 標準パターン: BS01-001, BSC48-X02, SD01-001, CB01-001等
+        r'([A-Z]{2,3}\d{1,2}-[A-Z]?\d{1,3})',
+        # プロモパターン: P-001, X-001
+        r'([PX]-\d{1,3})',
+        # 括弧内のパターン
+        r'[（\(]([A-Z]{2,3}\d{1,2}-[A-Z]?\d{1,3})[）\)]',
+        r'[（\(]([PX]-\d{1,3})[）\)]',
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, normalized, re.IGNORECASE)
+        if match:
+            return match.group(1).upper()
+
+    return None
+
+
+def extract_base_card_name(name: str) -> str:
+    """
+    カード名から番号や記号を除いた基本名を抽出
+    例: "[リバイバル]ジークフリード（BSC48-X02）" → "ジークフリード"
+    """
+    # NFKC正規化
+    normalized = unicodedata.normalize("NFKC", name)
+
+    # カード番号を除去
+    result = re.sub(r'[（\(][A-Z]{2,3}\d{1,2}-[A-Z]?\d{1,3}[）\)]', '', normalized)
+    result = re.sub(r'[（\(][PX]-\d{1,3}[）\)]', '', result)
+    result = re.sub(r'[A-Z]{2,3}\d{1,2}-[A-Z]?\d{1,3}', '', result)
+
+    # レアリティ記号を除去 [X], [M], [R]等
+    result = re.sub(r'\[[A-Z]+\]', '', result)
+    result = re.sub(r'【[^】]+】', '', result)
+
+    # 前後の空白・記号を除去
+    result = result.strip(' 　・-')
+
+    return result
+
+
 @contextmanager
 def get_connection():
     """DBコネクション取得（コンテキストマネージャ）"""
@@ -338,6 +397,86 @@ def migrate_v6_rakuten_products():
         print("Migration v6 (rakuten_products) completed")
 
 
+def migrate_v7_card_groups():
+    """v7スキーマへのマイグレーション（カードグループ機能追加）"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # カードグループテーブル（手動でカードをまとめるためのグループ）
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS card_groups (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                base_name TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # カードとグループの関連テーブル
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS card_group_members (
+                id INTEGER PRIMARY KEY,
+                group_id INTEGER NOT NULL,
+                card_id INTEGER NOT NULL,
+                is_primary INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (group_id) REFERENCES card_groups(id) ON DELETE CASCADE,
+                FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE,
+                UNIQUE(group_id, card_id)
+            )
+        """)
+
+        # cardsテーブルにextracted_card_noカラムを追加（存在しない場合）
+        try:
+            cursor.execute("ALTER TABLE cards ADD COLUMN extracted_card_no TEXT")
+        except sqlite3.OperationalError:
+            pass  # カラムが既に存在する場合は無視
+
+        # cardsテーブルにbase_nameカラムを追加（存在しない場合）
+        try:
+            cursor.execute("ALTER TABLE cards ADD COLUMN base_name TEXT")
+        except sqlite3.OperationalError:
+            pass
+
+        # インデックス作成
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_card_groups_base_name ON card_groups(base_name)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_card_group_members_group ON card_group_members(group_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_card_group_members_card ON card_group_members(card_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_cards_extracted_no ON cards(extracted_card_no)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_cards_base_name ON cards(base_name)")
+
+        conn.commit()
+        print("Migration v7 (card_groups) completed")
+
+
+def update_card_numbers():
+    """既存カードのカード番号・基本名を抽出して更新"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # 未処理のカードを取得
+        cursor.execute("""
+            SELECT id, name FROM cards
+            WHERE extracted_card_no IS NULL OR base_name IS NULL
+        """)
+        cards = cursor.fetchall()
+
+        updated = 0
+        for card in cards:
+            card_no = extract_card_number(card['name'])
+            base_name = extract_base_card_name(card['name'])
+
+            cursor.execute("""
+                UPDATE cards
+                SET extracted_card_no = ?, base_name = ?
+                WHERE id = ?
+            """, (card_no, base_name, card['id']))
+            updated += 1
+
+        conn.commit()
+        print(f"Updated card numbers for {updated} cards")
+
+
 def init_shops():
     """ショップマスタ初期データ投入"""
     shops = [
@@ -556,6 +695,171 @@ def get_card_price_history(card_id: int, days: int = 30) -> list[dict]:
         """, (card_id, -days))
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
+
+
+def get_unified_card_prices(card_id: int) -> dict:
+    """
+    カードIDから統合された価格情報を取得
+    - 同じカード番号を持つカードの価格をまとめる
+    - 同じグループに属するカードの価格をまとめる
+    """
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # まずカード情報を取得
+        cursor.execute("SELECT * FROM cards WHERE id = ?", (card_id,))
+        card_row = cursor.fetchone()
+        if not card_row:
+            return None
+
+        card = dict(card_row)
+        card_no = card.get('extracted_card_no') or extract_card_number(card['name'])
+        base_name = card.get('base_name') or extract_base_card_name(card['name'])
+
+        # 同じカード番号を持つカードIDを取得
+        related_card_ids = [card_id]
+        if card_no:
+            cursor.execute("""
+                SELECT id FROM cards
+                WHERE extracted_card_no = ? AND id != ?
+            """, (card_no, card_id))
+            related_card_ids.extend([row['id'] for row in cursor.fetchall()])
+
+        # グループに属している場合、グループメンバーも追加
+        cursor.execute("""
+            SELECT cm2.card_id FROM card_group_members cm1
+            JOIN card_group_members cm2 ON cm1.group_id = cm2.group_id
+            WHERE cm1.card_id = ? AND cm2.card_id != ?
+        """, (card_id, card_id))
+        for row in cursor.fetchall():
+            if row['card_id'] not in related_card_ids:
+                related_card_ids.append(row['card_id'])
+
+        # 全ての関連カードから価格を取得
+        placeholders = ','.join(['?' for _ in related_card_ids])
+        cursor.execute(f"""
+            SELECT p.*, c.name as card_name, s.name as shop_name
+            FROM prices p
+            JOIN cards c ON p.card_id = c.id
+            JOIN shops s ON p.shop_id = s.id
+            WHERE p.card_id IN ({placeholders})
+            AND p.id IN (
+                SELECT MAX(id) FROM prices
+                WHERE card_id IN ({placeholders})
+                GROUP BY card_id, shop_id
+            )
+            ORDER BY p.price ASC
+        """, related_card_ids + related_card_ids)
+        prices = [Price(**dict(row)) for row in cursor.fetchall()]
+
+        return {
+            'card': card,
+            'card_no': card_no,
+            'base_name': base_name,
+            'prices': prices,
+            'related_card_ids': related_card_ids,
+        }
+
+
+def get_related_cards(card_id: int, base_name: str = None) -> list[dict]:
+    """
+    関連カード（リバイバル版/旧版など）を取得
+    同じbase_nameで異なるカード番号を持つカード
+    """
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        if not base_name:
+            cursor.execute("SELECT base_name FROM cards WHERE id = ?", (card_id,))
+            row = cursor.fetchone()
+            if row and row['base_name']:
+                base_name = row['base_name']
+            else:
+                return []
+
+        # 同じbase_nameで異なるカードを取得
+        cursor.execute("""
+            SELECT c.*, MIN(p.price) as min_price
+            FROM cards c
+            LEFT JOIN prices p ON c.id = p.card_id
+            WHERE c.base_name = ? AND c.id != ?
+            GROUP BY c.id
+            ORDER BY c.extracted_card_no
+        """, (base_name, card_id))
+
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def add_card_to_group(card_id: int, group_id: int = None, group_name: str = None) -> int:
+    """カードをグループに追加（グループがなければ作成）"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        if not group_id and group_name:
+            # グループを作成
+            cursor.execute(
+                "INSERT INTO card_groups (name) VALUES (?)",
+                (group_name,)
+            )
+            group_id = cursor.lastrowid
+
+        if group_id:
+            cursor.execute("""
+                INSERT OR IGNORE INTO card_group_members (group_id, card_id)
+                VALUES (?, ?)
+            """, (group_id, card_id))
+            conn.commit()
+
+        return group_id
+
+
+def get_card_groups() -> list[dict]:
+    """全カードグループを取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT g.*, COUNT(m.card_id) as member_count
+            FROM card_groups g
+            LEFT JOIN card_group_members m ON g.id = m.group_id
+            GROUP BY g.id
+            ORDER BY g.created_at DESC
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def get_group_members(group_id: int) -> list[dict]:
+    """グループに属するカードを取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT c.*, m.is_primary, MIN(p.price) as min_price
+            FROM card_group_members m
+            JOIN cards c ON m.card_id = c.id
+            LEFT JOIN prices p ON c.id = p.card_id
+            WHERE m.group_id = ?
+            GROUP BY c.id
+            ORDER BY m.is_primary DESC, c.name
+        """, (group_id,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def remove_card_from_group(card_id: int, group_id: int):
+    """カードをグループから削除"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            DELETE FROM card_group_members
+            WHERE card_id = ? AND group_id = ?
+        """, (card_id, group_id))
+        conn.commit()
+
+
+def delete_card_group(group_id: int):
+    """カードグループを削除"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM card_groups WHERE id = ?", (group_id,))
+        conn.commit()
 
 
 # =============================================================================

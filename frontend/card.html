@@ -130,16 +130,20 @@
             display: inline-flex;
             align-items: center;
             gap: 4px;
-            padding: 6px 12px;
-            background: var(--accent-color);
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #f97316, #ea580c);
             color: white;
-            border-radius: 4px;
+            border-radius: 6px;
             text-decoration: none;
-            font-size: 0.85rem;
-            transition: opacity 0.2s;
+            font-size: 0.9rem;
+            font-weight: bold;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 2px 8px rgba(249, 115, 22, 0.3);
+            white-space: nowrap;
         }
         .shop-link:hover {
-            opacity: 0.8;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(249, 115, 22, 0.4);
         }
         .section-title {
             font-size: 1.2rem;
@@ -161,6 +165,63 @@
         .breadcrumb a:hover {
             text-decoration: underline;
         }
+        .card-number {
+            display: inline-block;
+            background: var(--accent-color);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            margin-bottom: 12px;
+        }
+        .related-cards-section {
+            margin-top: 32px;
+        }
+        .related-cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+        }
+        .related-card {
+            background: var(--background-secondary);
+            border-radius: 8px;
+            padding: 16px;
+            display: flex;
+            gap: 12px;
+            text-decoration: none;
+            color: var(--text-primary);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .related-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .related-card-info {
+            flex: 1;
+        }
+        .related-card-name {
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        .related-card-no {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+        .related-card-price {
+            color: var(--accent-color);
+            font-weight: bold;
+        }
+        .related-card-badge {
+            display: inline-block;
+            background: rgba(139, 92, 246, 0.2);
+            color: #8b5cf6;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin-left: 8px;
+        }
         @media (max-width: 768px) {
             .card-header {
                 flex-direction: column;
@@ -176,6 +237,9 @@
             .price-table th,
             .price-table td {
                 padding: 8px;
+            }
+            .related-cards-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -230,6 +294,7 @@
                     </div>
                     <div class="card-info">
                         <h1 id="card-name" class="card-name"></h1>
+                        <div id="card-number" class="card-number hidden"></div>
                         <div class="card-stats">
                             <div class="stat-item">
                                 <div class="stat-label">最安値</div>
@@ -266,6 +331,12 @@
                     <tbody id="price-table-body">
                     </tbody>
                 </table>
+
+                <!-- 関連カード（リバイバル/旧版） -->
+                <div id="related-cards-section" class="related-cards-section hidden">
+                    <h2 class="section-title">関連カード（リバイバル/旧版）</h2>
+                    <div id="related-cards" class="related-cards-grid"></div>
+                </div>
             </div>
         </div>
     </main>
@@ -319,6 +390,7 @@
         const errorEl = document.getElementById('error');
         const cardDetailEl = document.getElementById('card-detail');
         const cardNameEl = document.getElementById('card-name');
+        const cardNumberEl = document.getElementById('card-number');
         const cardImageEl = document.getElementById('card-image');
         const minPriceEl = document.getElementById('min-price');
         const maxPriceEl = document.getElementById('max-price');
@@ -326,6 +398,8 @@
         const batspiLinkEl = document.getElementById('batspi-link');
         const breadcrumbCardEl = document.getElementById('breadcrumb-card');
         const priceTableBodyEl = document.getElementById('price-table-body');
+        const relatedCardsSectionEl = document.getElementById('related-cards-section');
+        const relatedCardsEl = document.getElementById('related-cards');
 
         // 価格フォーマット
         function formatPrice(price) {
@@ -343,9 +417,16 @@
                 const data = await response.json();
 
                 // タイトルを更新
-                document.title = `${data.card.name} | BSPrice - バトスピ価格比較`;
-                cardNameEl.textContent = data.card.name;
-                breadcrumbCardEl.textContent = data.card.name;
+                const cardName = data.base_name || data.card.name;
+                document.title = `${cardName} | BSPrice - バトスピ価格比較`;
+                cardNameEl.textContent = cardName;
+                breadcrumbCardEl.textContent = cardName;
+
+                // カード番号を表示
+                if (data.card_no) {
+                    cardNumberEl.textContent = data.card_no;
+                    cardNumberEl.classList.remove('hidden');
+                }
 
                 // 画像（最初の価格データから取得）
                 if (data.prices.length > 0 && data.prices[0].image_url) {
@@ -376,17 +457,38 @@
                     const isLowest = price.price === minPrice;
                     const stockClass = price.stock > 0 ? 'stock-available' : 'stock-soldout';
                     const stockText = price.stock > 0 ? `在庫あり (${price.stock_text || price.stock})` : '売り切れ';
-                    const redirectUrl = `/api/redirect?url=${encodeURIComponent(price.url)}&site=${encodeURIComponent(price.shop_name)}&card=${encodeURIComponent(data.card.name)}`;
+                    const redirectUrl = `/api/redirect?url=${encodeURIComponent(price.url)}&site=${encodeURIComponent(price.site)}&card=${encodeURIComponent(data.card.name)}`;
 
                     return `
                         <tr>
-                            <td>${price.shop_name}</td>
+                            <td><strong>${price.site}</strong></td>
                             <td class="price-value ${isLowest ? 'price-lowest' : ''}">${formatPrice(price.price)}</td>
                             <td><span class="stock-badge ${stockClass}">${stockText}</span></td>
                             <td><a href="${redirectUrl}" target="_blank" rel="noopener" class="shop-link">購入ページへ</a></td>
                         </tr>
                     `;
                 }).join('');
+
+                // 関連カード（リバイバル/旧版）を表示
+                if (data.related_cards && data.related_cards.length > 0) {
+                    relatedCardsEl.innerHTML = data.related_cards.map(card => {
+                        const cardNo = card.extracted_card_no || '';
+                        const minPrice = card.min_price ? formatPrice(card.min_price) : '価格情報なし';
+                        const isRevival = cardNo && cardNo.includes('BSC');
+                        const badge = isRevival ? '<span class="related-card-badge">リバイバル</span>' : '';
+
+                        return `
+                            <a href="/card/${card.id}" class="related-card">
+                                <div class="related-card-info">
+                                    <div class="related-card-name">${card.name}${badge}</div>
+                                    <div class="related-card-no">${cardNo || '番号なし'}</div>
+                                    <div class="related-card-price">最安: ${minPrice}</div>
+                                </div>
+                            </a>
+                        `;
+                    }).join('');
+                    relatedCardsSectionEl.classList.remove('hidden');
+                }
 
                 // 表示切り替え
                 loadingEl.classList.add('hidden');

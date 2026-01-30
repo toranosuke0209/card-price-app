@@ -90,6 +90,15 @@ from database import (
     get_card_by_id,
     get_card_all_prices,
     get_card_price_history,
+    get_unified_card_prices,
+    get_related_cards,
+    get_card_groups,
+    get_group_members,
+    add_card_to_group,
+    remove_card_from_group,
+    delete_card_group,
+    migrate_v7_card_groups,
+    update_card_numbers,
     get_or_create_card_v2,
     update_popular_cards,
     # 人気キーワード関連
@@ -444,24 +453,33 @@ async def get_shops_data():
 async def get_card_detail(card_id: int):
     """
     カード詳細情報を取得（カード詳細ページ用）
+    - 同じカード番号を持つカードの価格を統合
+    - リバイバル/旧版などの関連カードを表示
     """
-    card = get_card_by_id(card_id)
-    if not card:
+    # 統合された価格情報を取得
+    unified = get_unified_card_prices(card_id)
+    if not unified:
         raise HTTPException(status_code=404, detail="Card not found")
 
-    # 全ショップの価格を取得
-    prices = get_card_all_prices(card_id)
+    card = unified['card']
+    prices = unified['prices']
 
-    # 価格履歴を取得
+    # 価格履歴を取得（関連カード全ての価格履歴を統合）
     price_history = get_card_price_history(card_id, days=30)
 
+    # 関連カード（リバイバル/旧版）を取得
+    related_cards = get_related_cards(card_id, unified.get('base_name'))
+
     return {
-        "card": card.to_dict(),
+        "card": card,
+        "card_no": unified.get('card_no'),
+        "base_name": unified.get('base_name'),
         "prices": [p.to_dict() for p in prices],
         "price_history": price_history,
         "min_price": min(p.price for p in prices) if prices else None,
         "max_price": max(p.price for p in prices) if prices else None,
-        "shop_count": len(prices),
+        "shop_count": len(set(p.shop_id for p in prices)),
+        "related_cards": related_cards,
     }
 
 
