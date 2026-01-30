@@ -3,6 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Google Analytics (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-5WL1F00NNC"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-5WL1F00NNC');
+    </script>
     <meta name="google-site-verification" content="_bJsQvTmoYzl3SAFI-1Q8b4Kp7A3JwLyTc7Uf05Mr1k">
     <meta name="description" content="バトルスピリッツのカード価格を複数ショップから一括比較。最安値を簡単に見つけられます。">
     <title>バトスピ価格比較 | BSPrice</title>
@@ -17,6 +25,25 @@
     <meta name="twitter:card" content="summary">
     <meta name="twitter:title" content="バトスピ価格比較 | BSPrice">
     <meta name="twitter:description" content="バトルスピリッツのカード価格を複数ショップから一括比較。最安値を簡単に見つけられます。">
+    <!-- 構造化データ (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "BSPrice - バトスピ価格比較",
+        "alternateName": "BSPrice",
+        "url": "https://bsprice.net/",
+        "description": "バトルスピリッツのカード価格を複数ショップから一括比較。最安値を簡単に見つけられます。",
+        "potentialAction": {
+            "@type": "SearchAction",
+            "target": {
+                "@type": "EntryPoint",
+                "urlTemplate": "https://bsprice.net/search?q={search_term_string}"
+            },
+            "query-input": "required name=search_term_string"
+        }
+    }
+    </script>
     <link rel="stylesheet" href="/static/style.css">
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2167017279500518"
          crossorigin="anonymous"></script>

@@ -32,6 +32,9 @@ class Card:
     detail_url: Optional[str] = None
     is_popular: int = 0
     last_price_fetch_at: Optional[datetime] = None
+    # v7追加カラム（カード統合機能用）
+    extracted_card_no: Optional[str] = None
+    base_name: Optional[str] = None
 
     def to_dict(self) -> dict:
         return asdict(self)

@@ -3,6 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Google Analytics (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-5WL1F00NNC"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-5WL1F00NNC');
+    </script>
     <meta name="description" content="バトルスピリッツのカード価格を複数ショップで比較">
     <title>カード詳細 | BSPrice - バトスピ価格比較</title>
     <!-- OGP -->
@@ -16,6 +24,26 @@
     <meta name="twitter:card" content="summary">
     <meta name="twitter:title" content="カード詳細 | BSPrice - バトスピ価格比較">
     <meta name="twitter:description" content="バトルスピリッツのカード価格を複数ショップで比較">
+    <!-- 構造化データ (JSON-LD) - パンくずリスト -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "トップ",
+                "item": "https://bsprice.net/"
+            },
+            {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "カード詳細"
+            }
+        ]
+    }
+    </script>
     <link rel="stylesheet" href="/static/style.css">
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2167017279500518"
          crossorigin="anonymous"></script>
@@ -456,12 +484,13 @@
                 priceTableBodyEl.innerHTML = data.prices.map(price => {
                     const isLowest = price.price === minPrice;
                     const stockClass = price.stock > 0 ? 'stock-available' : 'stock-soldout';
-                    const stockText = price.stock > 0 ? `在庫あり (${price.stock_text || price.stock})` : '売り切れ';
-                    const redirectUrl = `/api/redirect?url=${encodeURIComponent(price.url)}&site=${encodeURIComponent(price.site)}&card=${encodeURIComponent(data.card.name)}`;
+                    const stockText = price.stock > 0 ? `在庫あり (${price.stock_text || price.stock + '枚'})` : '売り切れ';
+                    const shopName = price.site || '不明';
+                    const redirectUrl = `/api/redirect?url=${encodeURIComponent(price.url)}&site=${encodeURIComponent(shopName)}&card=${encodeURIComponent(data.card.name)}`;
 
                     return `
                         <tr>
-                            <td><strong>${price.site}</strong></td>
+                            <td><strong>${shopName}</strong></td>
                             <td class="price-value ${isLowest ? 'price-lowest' : ''}">${formatPrice(price.price)}</td>
                             <td><span class="stock-badge ${stockClass}">${stockText}</span></td>
                             <td><a href="${redirectUrl}" target="_blank" rel="noopener" class="shop-link">購入ページへ</a></td>
@@ -489,6 +518,34 @@
                     }).join('');
                     relatedCardsSectionEl.classList.remove('hidden');
                 }
+
+                // 構造化データ (JSON-LD) を動的に追加
+                const structuredData = {
+                    "@context": "https://schema.org",
+                    "@type": "Product",
+                    "name": cardName,
+                    "description": `バトルスピリッツ カード「${cardName}」の価格比較`,
+                    "brand": {
+                        "@type": "Brand",
+                        "name": "バトルスピリッツ"
+                    },
+                    "category": "トレーディングカード",
+                    "offers": {
+                        "@type": "AggregateOffer",
+                        "lowPrice": data.min_price || 0,
+                        "highPrice": data.max_price || 0,
+                        "priceCurrency": "JPY",
+                        "offerCount": data.shop_count || 0,
+                        "availability": "https://schema.org/InStock"
+                    }
+                };
+                if (data.prices.length > 0 && data.prices[0].image_url) {
+                    structuredData.image = data.prices[0].image_url;
+                }
+                const scriptEl = document.createElement('script');
+                scriptEl.type = 'application/ld+json';
+                scriptEl.textContent = JSON.stringify(structuredData);
+                document.head.appendChild(scriptEl);
 
                 // 表示切り替え
                 loadingEl.classList.add('hidden');

@@ -3,6 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Google Analytics (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-5WL1F00NNC"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-5WL1F00NNC');
+    </script>
     <meta name="description" content="バトルスピリッツのカード価格を複数ショップから一括比較。検索結果ページ。">
     <title>検索結果 | BSPrice - バトスピ価格比較</title>
     <!-- OGP -->
@@ -16,6 +24,26 @@
     <meta name="twitter:card" content="summary">
     <meta name="twitter:title" content="検索結果 | BSPrice - バトスピ価格比較">
     <meta name="twitter:description" content="バトルスピリッツのカード価格を複数ショップから一括比較。検索結果ページ。">
+    <!-- 構造化データ (JSON-LD) - パンくずリスト -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "トップ",
+                "item": "https://bsprice.net/"
+            },
+            {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "検索結果"
+            }
+        ]
+    }
+    </script>
     <link rel="stylesheet" href="/static/style.css">
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2167017279500518"
          crossorigin="anonymous"></script>
