@@ -341,14 +341,18 @@ body {
 }
 
 .ad-placeholder {
-    background: var(--bg-card);
-    border: 1px solid var(--border-dark);
+    background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-dark) 100%);
+    border: 1px dashed var(--border-light);
     border-radius: 12px;
-    padding: 24px;
+    padding: 20px;
     text-align: center;
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     font-weight: 500;
+    min-height: 90px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .ad-header {
@@ -357,6 +361,19 @@ body {
 
 .ad-footer {
     margin-bottom: 0;
+}
+
+@media (max-width: 768px) {
+    .ad-banner {
+        padding: 10px 12px;
+    }
+
+    .ad-placeholder {
+        padding: 16px;
+        min-height: 70px;
+        font-size: 0.75rem;
+        border-radius: 8px;
+    }
 }
 
 /* =============================================================================
@@ -661,7 +678,7 @@ body {
 
 .product-card {
     display: grid;
-    grid-template-columns: 95px auto 1fr auto auto auto;
+    grid-template-columns: 95px auto 1fr auto auto;
     gap: 18px;
     align-items: center;
     padding: 18px 22px;
@@ -762,6 +779,13 @@ body {
     color: var(--sapphire);
 }
 
+.product-price-stock {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
 .product-price {
     font-size: 1.3rem;
     font-weight: 700;
@@ -775,6 +799,7 @@ body {
     font-weight: 600;
     padding: 7px 14px;
     border-radius: 8px;
+    white-space: nowrap;
 }
 
 .product-stock.in-stock {
@@ -1018,6 +1043,87 @@ body {
     display: flex;
     flex-direction: column;
     gap: 3px;
+}
+
+/* 管理画面 - 巡回状況 */
+.batch-status-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.batch-status-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-dark);
+    border-radius: 10px;
+    padding: 14px 18px;
+}
+
+.batch-status-item.success {
+    border-left: 4px solid var(--emerald);
+}
+
+.batch-status-item.error {
+    border-left: 4px solid var(--ruby);
+}
+
+.batch-status-item .batch-shop-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+    min-width: 140px;
+}
+
+.batch-status-item .batch-shop-stats {
+    flex: 1;
+    display: flex;
+    gap: 16px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.batch-status-item .batch-stat {
+    background: var(--bg-dark);
+    padding: 4px 10px;
+    border-radius: 6px;
+}
+
+.batch-status-item .batch-time {
+    color: var(--text-muted);
+}
+
+.batch-status-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 6px;
+}
+
+.batch-status-badge.success {
+    background: var(--emerald);
+    color: white;
+}
+
+.batch-status-badge.error {
+    background: var(--ruby);
+    color: white;
+}
+
+@media (max-width: 768px) {
+    .batch-status-item {
+        flex-wrap: wrap;
+    }
+
+    .batch-status-item .batch-shop-name {
+        min-width: 100%;
+    }
+
+    .batch-status-item .batch-shop-stats {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
 }
 
 /* =============================================================================
@@ -1750,16 +1856,30 @@ body {
     }
 
     .product-card {
-        grid-template-columns: 80px 1fr;
-        grid-template-rows: auto auto auto;
-        gap: 12px;
+        grid-template-columns: 110px 1fr;
+        grid-template-rows: auto auto auto auto;
+        gap: 10px;
+        padding: 14px;
     }
 
     .product-image,
     .product-image-placeholder {
-        width: 80px;
-        height: 80px;
-        grid-row: 1 / 4;
+        width: 110px;
+        height: 110px;
+        grid-row: 1 / 5;
+    }
+
+    .product-price-stock {
+        gap: 10px;
+    }
+
+    .product-price {
+        font-size: 1.2rem;
+    }
+
+    .product-stock {
+        font-size: 0.8rem;
+        padding: 5px 10px;
     }
 
     .controls {
@@ -2175,16 +2295,18 @@ a.featured-keyword-tag {
 
 .amazon-product {
     display: flex;
-    flex: 1;
+    flex-direction: column;
     align-items: center;
-    gap: 12px;
+    flex: 1;
+    gap: 10px;
     background: var(--bg-card);
     border: 1px solid var(--border-dark);
     border-radius: 10px;
-    padding: 12px;
+    padding: 14px;
     text-decoration: none;
     transition: all 0.2s ease;
     min-width: 0;
+    text-align: center;
 }
 
 .amazon-product:hover {
@@ -2194,8 +2316,8 @@ a.featured-keyword-tag {
 }
 
 .amazon-product-img {
-    width: 80px;
-    height: 80px;
+    width: 100px;
+    height: 100px;
     object-fit: contain;
     border-radius: 6px;
     background: white;
@@ -2203,13 +2325,19 @@ a.featured-keyword-tag {
 
 .amazon-product-info {
     flex: 1;
+    width: 100%;
 }
 
 .amazon-product-name {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     color: var(--text-primary);
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
 }
 
 .amazon-product-price {
@@ -2254,6 +2382,29 @@ a.featured-keyword-tag {
         padding: 16px;
     }
 
+    .amazon-products {
+        gap: 10px;
+    }
+
+    .amazon-product {
+        padding: 10px;
+        gap: 8px;
+    }
+
+    .amazon-product-img {
+        width: 80px;
+        height: 80px;
+    }
+
+    .amazon-product-name {
+        font-size: 0.75rem;
+        -webkit-line-clamp: 2;
+    }
+
+    .amazon-product-price {
+        font-size: 0.95rem;
+    }
+
     .amazon-link {
         padding: 8px 16px;
         font-size: 0.85rem;
@@ -2291,16 +2442,18 @@ a.featured-keyword-tag {
 
 .rakuten-product {
     display: flex;
-    flex: 1;
+    flex-direction: column;
     align-items: center;
-    gap: 12px;
+    flex: 1;
+    gap: 10px;
     background: var(--bg-card);
     border: 1px solid var(--border-dark);
     border-radius: 10px;
-    padding: 12px;
+    padding: 14px;
     text-decoration: none;
     transition: all 0.2s ease;
     min-width: 0;
+    text-align: center;
 }
 
 .rakuten-product:hover {
@@ -2310,8 +2463,8 @@ a.featured-keyword-tag {
 }
 
 .rakuten-product-img {
-    width: 80px;
-    height: 80px;
+    width: 100px;
+    height: 100px;
     object-fit: contain;
     border-radius: 6px;
     background: white;
@@ -2320,12 +2473,13 @@ a.featured-keyword-tag {
 .rakuten-product-info {
     flex: 1;
     min-width: 0;
+    width: 100%;
 }
 
 .rakuten-product-name {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     color: var(--text-primary);
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     line-height: 1.4;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2377,16 +2531,464 @@ a.featured-keyword-tag {
     }
 
     .rakuten-products {
-        flex-wrap: wrap;
+        gap: 10px;
     }
 
     .rakuten-product {
-        flex: 1 1 100%;
+        padding: 10px;
+        gap: 8px;
+    }
+
+    .rakuten-product-img {
+        width: 80px;
+        height: 80px;
+    }
+
+    .rakuten-product-name {
+        font-size: 0.75rem;
+        -webkit-line-clamp: 2;
+    }
+
+    .rakuten-product-price {
+        font-size: 0.95rem;
     }
 
     .rakuten-link {
         padding: 8px 16px;
         font-size: 0.85rem;
+    }
+}
+
+/* =============================================================================
+   管理画面タブUI
+   ============================================================================= */
+
+.admin-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 24px;
+    background: var(--bg-card);
+    padding: 8px;
+    border-radius: 14px;
+    border: 1px solid var(--border-dark);
+}
+
+.admin-tab {
+    padding: 12px 20px;
+    background: transparent;
+    border: none;
+    border-radius: 10px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.admin-tab:hover {
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.admin-tab.active {
+    background: linear-gradient(135deg, var(--sapphire) 0%, var(--amethyst) 100%);
+    color: white;
+    font-weight: 600;
+    box-shadow: 0 4px 15px var(--sapphire-glow);
+}
+
+.admin-tab-content {
+    display: none;
+}
+
+.admin-tab-content.active {
+    display: block;
+}
+
+/* =============================================================================
+   アクセス解析スタイル
+   ============================================================================= */
+
+.analytics-controls {
+    margin-bottom: 20px;
+}
+
+.analytics-controls select {
+    padding: 8px 12px;
+    background: var(--bg-dark);
+    border: 1px solid var(--border-dark);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.analytics-controls select:focus {
+    border-color: var(--sapphire);
+    outline: none;
+}
+
+.analytics-chart {
+    min-height: 200px;
+    padding: 20px 0;
+}
+
+/* 棒グラフ */
+.chart-container {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 180px;
+    padding: 10px 0;
+    overflow-x: auto;
+}
+
+.chart-bar-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 40px;
+    flex: 1;
+}
+
+.chart-bar {
+    width: 100%;
+    max-width: 50px;
+    background: linear-gradient(180deg, var(--sapphire) 0%, var(--amethyst) 100%);
+    border-radius: 4px 4px 0 0;
+    min-height: 4px;
+    position: relative;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.chart-bar:hover {
+    filter: brightness(1.2);
+}
+
+.chart-bar-value {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    padding: 2px 4px;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.chart-bar:hover .chart-bar-value {
+    opacity: 1;
+}
+
+.chart-bar-label {
+    margin-top: 8px;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+/* ランキング表示 */
+.ranking-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ranking-item {
+    display: grid;
+    grid-template-columns: 40px 1fr minmax(100px, 200px) auto;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--bg-dark);
+    border-radius: 10px;
+    border: 1px solid var(--border-dark);
+    transition: all 0.2s ease;
+}
+
+.ranking-item:hover {
+    border-color: var(--border-light);
+    background: var(--bg-card-hover);
+}
+
+.ranking-rank {
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 0.85rem;
+    font-weight: 700;
+    background: var(--bg-card);
+    color: var(--text-secondary);
+}
+
+.ranking-item:nth-child(1) .ranking-rank {
+    background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+    color: #1a1a1a;
+}
+
+.ranking-item:nth-child(2) .ranking-rank {
+    background: linear-gradient(135deg, #C0C0C0 0%, #A0A0A0 100%);
+    color: #1a1a1a;
+}
+
+.ranking-item:nth-child(3) .ranking-rank {
+    background: linear-gradient(135deg, #CD7F32 0%, #A0522D 100%);
+    color: white;
+}
+
+.ranking-name {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ranking-bar-container {
+    height: 8px;
+    background: var(--bg-card);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.ranking-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--sapphire) 0%, var(--amethyst) 100%);
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+
+.ranking-count {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--sapphire);
+    white-space: nowrap;
+    text-align: right;
+}
+
+/* =============================================================================
+   ユーザー管理スタイル
+   ============================================================================= */
+
+.user-list {
+    margin-top: 18px;
+}
+
+.user-list-header {
+    display: grid;
+    grid-template-columns: 50px 120px 1fr 80px 90px 130px 150px;
+    gap: 12px;
+    padding: 14px 18px;
+    background: linear-gradient(135deg, var(--sapphire) 0%, var(--amethyst) 100%);
+    color: white;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-radius: 10px 10px 0 0;
+}
+
+.user-list-item {
+    display: grid;
+    grid-template-columns: 50px 120px 1fr 80px 90px 130px 150px;
+    gap: 12px;
+    padding: 14px 18px;
+    background: var(--bg-dark);
+    border: 1px solid var(--border-dark);
+    border-top: none;
+    align-items: center;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+}
+
+.user-list-item:last-child {
+    border-radius: 0 0 10px 10px;
+}
+
+.user-list-item:hover {
+    background: var(--bg-card-hover);
+}
+
+.user-list-item.banned {
+    opacity: 0.6;
+    background: rgba(230, 57, 70, 0.05);
+}
+
+.user-col-id {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.user-col-name {
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.user-col-email {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.role-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.role-badge.admin {
+    background: linear-gradient(135deg, var(--ruby) 0%, var(--topaz) 100%);
+    color: white;
+}
+
+.role-badge.user {
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-dark);
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.status-badge.active {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--emerald);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.status-badge.banned {
+    background: rgba(230, 57, 70, 0.15);
+    color: var(--ruby);
+    border: 1px solid rgba(230, 57, 70, 0.3);
+}
+
+.user-col-date {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.user-col-actions {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
+.user-btn {
+    padding: 6px 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.user-btn.toggle-role-btn {
+    background: linear-gradient(135deg, var(--amethyst) 0%, var(--amethyst-dark) 100%);
+    color: white;
+}
+
+.user-btn.toggle-role-btn:hover {
+    transform: scale(1.02);
+}
+
+.user-btn.toggle-ban-btn {
+    background: linear-gradient(135deg, var(--ruby) 0%, var(--ruby-dark) 100%);
+    color: white;
+}
+
+.user-btn.toggle-ban-btn.unban {
+    background: linear-gradient(135deg, var(--emerald) 0%, var(--emerald-dark) 100%);
+}
+
+.user-btn.toggle-ban-btn:hover {
+    transform: scale(1.02);
+}
+
+.self-label {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-style: italic;
+}
+
+/* モバイル対応 */
+@media (max-width: 900px) {
+    .admin-tabs {
+        justify-content: center;
+    }
+
+    .admin-tab {
+        padding: 10px 14px;
+        font-size: 0.8rem;
+    }
+
+    .user-list-header {
+        display: none;
+    }
+
+    .user-list-item {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        padding: 14px;
+    }
+
+    .user-col-id::before { content: "ID: "; color: var(--text-muted); }
+    .user-col-name::before { content: "ユーザー: "; color: var(--text-muted); font-weight: normal; }
+    .user-col-email::before { content: "メール: "; }
+    .user-col-role::before { content: "権限: "; color: var(--text-muted); }
+    .user-col-status::before { content: "状態: "; color: var(--text-muted); }
+    .user-col-date::before { content: "登録: "; }
+
+    .user-col-actions {
+        justify-content: flex-start;
+        margin-top: 8px;
+    }
+
+    .ranking-item {
+        grid-template-columns: 35px 1fr auto;
+    }
+
+    .ranking-bar-container {
+        display: none;
+    }
+}
+
+@media (max-width: 600px) {
+    .admin-tabs {
+        padding: 6px;
+        gap: 3px;
+    }
+
+    .admin-tab {
+        padding: 8px 12px;
+        font-size: 0.75rem;
+    }
+
+    .chart-bar-wrapper {
+        min-width: 30px;
+    }
+
+    .chart-bar-label {
+        font-size: 0.6rem;
     }
 }
 
@@ -2457,5 +3059,375 @@ a.featured-keyword-tag {
         flex-basis: 100%;
         justify-content: flex-end;
         margin-top: 8px;
+    }
+}
+
+/* =============================================================================
+   モバイル対応 - 包括的スタイル
+   ============================================================================= */
+
+@media (max-width: 768px) {
+    /* コンテナ */
+    .container {
+        padding: 12px;
+    }
+
+    /* ユーザーメニュー */
+    .user-menu-dropdown {
+        position: relative;
+    }
+
+    .user-menu-btn {
+        padding: 8px 12px;
+        font-size: 0.85rem;
+    }
+
+    .user-menu-btn .user-name {
+        max-width: 80px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .user-menu-content {
+        right: 0;
+        left: auto;
+        min-width: 160px;
+    }
+
+    .admin-badge {
+        font-size: 0.65rem;
+        padding: 2px 5px;
+    }
+
+    /* ホーム画面グリッド */
+    .home-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    .home-card {
+        padding: 16px;
+    }
+
+    .home-card h3 {
+        font-size: 1rem;
+    }
+
+    .home-item {
+        padding: 10px 12px;
+        gap: 8px;
+    }
+
+    .home-item-name {
+        font-size: 0.85rem;
+    }
+
+    .home-item-price,
+    .home-item-diff,
+    .home-item-shop {
+        font-size: 0.75rem;
+    }
+
+    /* 検索結果 */
+    .results {
+        gap: 12px;
+    }
+
+    .product-card {
+        padding: 12px;
+    }
+
+    .product-name {
+        font-size: 0.9rem;
+        -webkit-line-clamp: 2;
+    }
+
+    .product-price {
+        font-size: 1.1rem;
+    }
+
+    .product-stock {
+        font-size: 0.7rem;
+        padding: 3px 8px;
+    }
+
+    .product-link {
+        padding: 8px 12px;
+        font-size: 0.8rem;
+    }
+
+    /* 管理画面タブ */
+    .admin-tabs {
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .admin-tab {
+        padding: 8px 12px;
+        font-size: 0.8rem;
+        flex: 1 1 calc(33% - 6px);
+        text-align: center;
+        min-width: 90px;
+    }
+
+    /* 管理画面セクション */
+    .admin-section {
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+
+    .admin-section h2 {
+        font-size: 1.1rem;
+    }
+
+    .admin-section h3 {
+        font-size: 1rem;
+    }
+
+    /* 管理画面統計 */
+    .admin-stats {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+
+    .stat-card {
+        padding: 14px;
+    }
+
+    .stat-value {
+        font-size: 1.3rem;
+    }
+
+    .stat-label {
+        font-size: 0.75rem;
+    }
+
+    /* ユーザー管理テーブル */
+    .user-list-header {
+        display: none;
+    }
+
+    .user-list-item {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 14px;
+    }
+
+    .user-col-id,
+    .user-col-name,
+    .user-col-email,
+    .user-col-role,
+    .user-col-status,
+    .user-col-date {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .user-col-id::before { content: "ID"; color: var(--text-muted); }
+    .user-col-name::before { content: "ユーザー名"; color: var(--text-muted); }
+    .user-col-email::before { content: "メール"; color: var(--text-muted); }
+    .user-col-role::before { content: "権限"; color: var(--text-muted); }
+    .user-col-status::before { content: "状態"; color: var(--text-muted); }
+    .user-col-date::before { content: "登録日"; color: var(--text-muted); }
+
+    .user-col-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        padding-top: 8px;
+        border-top: 1px solid var(--border-dark);
+    }
+
+    /* アナリティクスチャート */
+    .chart-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .chart-bar-wrapper {
+        min-width: 30px;
+    }
+
+    .chart-bar-value {
+        font-size: 0.6rem;
+    }
+
+    .chart-bar-label {
+        font-size: 0.6rem;
+    }
+
+    /* ランキング */
+    .ranking-item {
+        padding: 10px 12px;
+    }
+
+    .ranking-rank {
+        font-size: 0.8rem;
+        min-width: 28px;
+    }
+
+    .ranking-name {
+        font-size: 0.85rem;
+    }
+
+    .ranking-count {
+        font-size: 0.75rem;
+    }
+
+    /* 巡回状況 */
+    .batch-status-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .batch-status-item .batch-shop-name {
+        font-size: 0.9rem;
+    }
+
+    .batch-status-item .batch-shop-stats {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .batch-status-badge {
+        align-self: flex-end;
+    }
+
+    /* ページネーション */
+    .pagination {
+        gap: 4px;
+    }
+
+    .pagination-btn {
+        padding: 8px 12px;
+        font-size: 0.8rem;
+        min-width: 36px;
+    }
+
+    .page-btn {
+        padding: 8px 12px;
+        font-size: 0.8rem;
+    }
+
+    /* リマインダー */
+    .admin-reminder {
+        padding: 14px;
+    }
+
+    .reminder-icon {
+        width: 32px;
+        height: 32px;
+        font-size: 1rem;
+    }
+
+    .reminder-title {
+        font-size: 0.9rem;
+    }
+
+    .reminder-desc {
+        font-size: 0.8rem;
+    }
+}
+
+@media (max-width: 480px) {
+    /* 極小画面向け追加調整 */
+    .site-nav {
+        gap: 2px;
+    }
+
+    .site-nav a {
+        padding: 8px 10px;
+        font-size: 0.75rem;
+    }
+
+    .logo-sub {
+        display: none;
+    }
+
+    .search-section {
+        padding: 24px 12px;
+    }
+
+    .search-subtitle {
+        font-size: 0.8rem;
+    }
+
+    /* 商品カード極小 */
+    .product-card {
+        grid-template-columns: 90px 1fr;
+        padding: 12px;
+        gap: 8px;
+    }
+
+    .product-image,
+    .product-image-placeholder {
+        width: 90px;
+        height: 90px;
+    }
+
+    .product-name {
+        font-size: 0.85rem;
+    }
+
+    .product-price-stock {
+        gap: 8px;
+    }
+
+    .product-price {
+        font-size: 1rem;
+    }
+
+    .product-stock {
+        font-size: 0.75rem;
+        padding: 4px 8px;
+    }
+
+    /* 管理画面タブ極小 */
+    .admin-tab {
+        flex: 1 1 calc(50% - 6px);
+        padding: 8px 8px;
+        font-size: 0.75rem;
+    }
+
+    .admin-stats {
+        grid-template-columns: 1fr;
+    }
+
+    /* フッター極小 */
+    .footer-inner {
+        padding: 30px 16px 20px;
+    }
+
+    .footer-links {
+        gap: 20px;
+    }
+
+    .footer-section h4 {
+        font-size: 0.8rem;
+        margin-bottom: 12px;
+    }
+
+    .footer-section a,
+    .footer-section span {
+        font-size: 0.8rem;
+        padding: 5px 0;
+    }
+
+    /* コントロール */
+    .controls label {
+        font-size: 0.8rem;
+    }
+
+    .controls select {
+        font-size: 0.8rem;
+        padding: 8px;
+    }
+
+    #result-count {
+        font-size: 0.75rem;
     }
 }

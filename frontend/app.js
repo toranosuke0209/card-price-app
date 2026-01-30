@@ -54,9 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }
 
-        // バッチ実行通知
-        renderBatchNotification(data.batch_logs);
-
         // 最近更新
         renderHomeList('recently-updated', data.recently_updated, (item) => `
             <a href="/search?q=${encodeURIComponent(item.name)}" class="home-item">
@@ -116,10 +113,16 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
     }
 
-    // バッチ実行通知を描画
+    // バッチ実行通知を描画（管理者のみ）
     function renderBatchNotification(batchLogs) {
         const notificationEl = document.getElementById('batch-notification');
         if (!notificationEl) return;
+
+        // 管理者以外には表示しない
+        if (!Auth.isAdmin()) {
+            notificationEl.classList.add('hidden');
+            return;
+        }
 
         // 最新の成功ログを取得（24時間以内）
         if (!batchLogs || batchLogs.length === 0) {
@@ -151,6 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const formatTime = (dateStr) => {
             const d = new Date(dateStr);
             return d.toLocaleString('ja-JP', {
+                timeZone: 'Asia/Tokyo',
                 month: 'numeric',
                 day: 'numeric',
                 hour: '2-digit',
@@ -197,11 +201,17 @@ document.addEventListener('DOMContentLoaded', () => {
         return str.length > maxLength ? str.substring(0, maxLength) + '...' : str;
     }
 
-    // 日付フォーマット
+    // 日付フォーマット（UTCをJSTに変換）
     function formatDate(dateStr) {
         if (!dateStr) return '';
-        const date = new Date(dateStr);
+        // UTCとして解釈するためにZを追加
+        let utcStr = dateStr;
+        if (!dateStr.endsWith('Z') && !dateStr.includes('+')) {
+            utcStr = dateStr.replace(' ', 'T') + 'Z';
+        }
+        const date = new Date(utcStr);
         return date.toLocaleString('ja-JP', {
+            timeZone: 'Asia/Tokyo',
             month: 'numeric',
             day: 'numeric',
             hour: '2-digit',

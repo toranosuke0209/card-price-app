@@ -186,8 +186,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${escapeHtml(product.name)}
                     </a>
                 </div>
-                <div class="product-price">${escapeHtml(product.price_text)}</div>
-                <span class="product-stock ${stockClass}">${escapeHtml(product.stock_text)}</span>
+                <div class="product-price-stock">
+                    <div class="product-price">${escapeHtml(product.price_text)}</div>
+                    <span class="product-stock ${stockClass}">${escapeHtml(product.stock_text)}</span>
+                </div>
                 ${favoriteBtn}
             </div>
         `;

@@ -1594,6 +1594,264 @@ def reorder_rakuten_products(product_ids: list[int]):
         conn.commit()
 
 
+# =============================================================================
+# アクセス解析用関数
+# =============================================================================
+
+def get_search_stats(period: str = 'daily', days: int = 30) -> list[dict]:
+    """期間別検索数統計を取得
+
+    Args:
+        period: 'daily', 'weekly', 'monthly'
+        days: 取得する日数
+    """
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        if period == 'daily':
+            cursor.execute("""
+                SELECT
+                    date(searched_at) as date,
+                    COUNT(*) as count
+                FROM search_logs
+                WHERE searched_at > datetime('now', ? || ' days')
+                GROUP BY date(searched_at)
+                ORDER BY date DESC
+            """, (f"-{days}",))
+        elif period == 'weekly':
+            cursor.execute("""
+                SELECT
+                    strftime('%Y-W%W', searched_at) as date,
+                    COUNT(*) as count
+                FROM search_logs
+                WHERE searched_at > datetime('now', ? || ' days')
+                GROUP BY strftime('%Y-W%W', searched_at)
+                ORDER BY date DESC
+            """, (f"-{days}",))
+        else:  # monthly
+            cursor.execute("""
+                SELECT
+                    strftime('%Y-%m', searched_at) as date,
+                    COUNT(*) as count
+                FROM search_logs
+                WHERE searched_at > datetime('now', ? || ' days')
+                GROUP BY strftime('%Y-%m', searched_at)
+                ORDER BY date DESC
+            """, (f"-{days}",))
+
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+
+def get_click_stats(period: str = 'daily', days: int = 30) -> list[dict]:
+    """期間別クリック数統計を取得
+
+    Args:
+        period: 'daily', 'weekly', 'monthly'
+        days: 取得する日数
+    """
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        if period == 'daily':
+            cursor.execute("""
+                SELECT
+                    date(clicked_at) as date,
+                    COUNT(*) as count
+                FROM clicks
+                WHERE clicked_at > datetime('now', ? || ' days')
+                GROUP BY date(clicked_at)
+                ORDER BY date DESC
+            """, (f"-{days}",))
+        elif period == 'weekly':
+            cursor.execute("""
+                SELECT
+                    strftime('%Y-W%W', clicked_at) as date,
+                    COUNT(*) as count
+                FROM clicks
+                WHERE clicked_at > datetime('now', ? || ' days')
+                GROUP BY strftime('%Y-W%W', clicked_at)
+                ORDER BY date DESC
+            """, (f"-{days}",))
+        else:  # monthly
+            cursor.execute("""
+                SELECT
+                    strftime('%Y-%m', clicked_at) as date,
+                    COUNT(*) as count
+                FROM clicks
+                WHERE clicked_at > datetime('now', ? || ' days')
+                GROUP BY strftime('%Y-%m', clicked_at)
+                ORDER BY date DESC
+            """, (f"-{days}",))
+
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+
+def get_keyword_ranking(days: int = 30, limit: int = 20) -> list[dict]:
+    """人気検索キーワードランキングを取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT
+                keyword,
+                COUNT(*) as count,
+                AVG(result_count) as avg_results
+            FROM search_logs
+            WHERE searched_at > datetime('now', ? || ' days')
+            GROUP BY keyword
+            ORDER BY count DESC
+            LIMIT ?
+        """, (f"-{days}", limit))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+
+def get_shop_click_ranking(days: int = 30) -> list[dict]:
+    """ショップ別クリック数を取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT
+                s.name as shop_name,
+                COUNT(c.id) as count
+            FROM shops s
+            LEFT JOIN clicks c ON c.shop_id = s.id
+                AND c.clicked_at > datetime('now', ? || ' days')
+            WHERE s.is_active = 1
+            GROUP BY s.id, s.name
+            ORDER BY count DESC
+        """, (f"-{days}",))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+
+def get_card_click_ranking(days: int = 30, limit: int = 20) -> list[dict]:
+    """カード別クリック数ランキングを取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT
+                c.id as card_id,
+                c.name as card_name,
+                COUNT(cl.id) as count
+            FROM cards c
+            JOIN clicks cl ON cl.card_id = c.id
+                AND cl.clicked_at > datetime('now', ? || ' days')
+            GROUP BY c.id, c.name
+            ORDER BY count DESC
+            LIMIT ?
+        """, (f"-{days}", limit))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+
+# =============================================================================
+# ユーザー管理用関数
+# =============================================================================
+
+def get_users_paginated(limit: int = 20, offset: int = 0, search: str = None) -> tuple[list[User], int]:
+    """ページネーション付きユーザー一覧を取得
+
+    Returns:
+        (ユーザーリスト, 総件数)
+    """
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # 検索条件
+        if search:
+            search_pattern = f"%{search}%"
+            cursor.execute("""
+                SELECT COUNT(*) FROM users
+                WHERE username LIKE ? OR email LIKE ?
+            """, (search_pattern, search_pattern))
+            total = cursor.fetchone()[0]
+
+            cursor.execute("""
+                SELECT * FROM users
+                WHERE username LIKE ? OR email LIKE ?
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+            """, (search_pattern, search_pattern, limit, offset))
+        else:
+            cursor.execute("SELECT COUNT(*) FROM users")
+            total = cursor.fetchone()[0]
+
+            cursor.execute("""
+                SELECT * FROM users
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+            """, (limit, offset))
+
+        rows = cursor.fetchall()
+        users = [User(**dict(row)) for row in rows]
+        return users, total
+
+
+def update_user_is_active(user_id: int, is_active: int, admin_id: int) -> Optional[User]:
+    """ユーザーのBAN/解除を行う
+
+    Args:
+        user_id: 対象ユーザーID
+        is_active: 1=アクティブ, 0=BAN
+        admin_id: 操作を行う管理者のID
+
+    Returns:
+        更新後のユーザー（自分自身の場合はNone）
+    """
+    # 自分自身の変更は不可
+    if user_id == admin_id:
+        return None
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE users SET is_active = ? WHERE id = ?
+        """, (is_active, user_id))
+        conn.commit()
+
+        if cursor.rowcount == 0:
+            return None
+
+        cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+        row = cursor.fetchone()
+        return User(**dict(row)) if row else None
+
+
+def update_user_role(user_id: int, role: str, admin_id: int) -> Optional[User]:
+    """ユーザーの権限を変更する
+
+    Args:
+        user_id: 対象ユーザーID
+        role: 'user' or 'admin'
+        admin_id: 操作を行う管理者のID
+
+    Returns:
+        更新後のユーザー（自分自身の場合はNone）
+    """
+    # 自分自身の変更は不可
+    if user_id == admin_id:
+        return None
+
+    if role not in ('user', 'admin'):
+        return None
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE users SET role = ? WHERE id = ?
+        """, (role, user_id))
+        conn.commit()
+
+        if cursor.rowcount == 0:
+            return None
+
+        cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+        row = cursor.fetchone()
+        return User(**dict(row)) if row else None
+
+
 if __name__ == "__main__":
     # 直接実行時にDB初期化
     init_database()

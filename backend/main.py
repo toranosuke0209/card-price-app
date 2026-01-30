@@ -58,6 +58,7 @@ from database import (
     migrate_v3_auth,
     migrate_v4_featured_keywords,
     migrate_v5_amazon_products,
+    get_connection,
     get_all_shops,
     get_shop_by_name,
     get_latest_prices_by_keyword,
@@ -102,6 +103,16 @@ from database import (
     update_amazon_product,
     delete_amazon_product,
     reorder_amazon_products,
+    # アクセス解析関連
+    get_search_stats,
+    get_click_stats,
+    get_keyword_ranking,
+    get_shop_click_ranking,
+    get_card_click_ranking,
+    # ユーザー管理関連
+    get_users_paginated,
+    update_user_is_active,
+    update_user_role,
 )
 
 from auth import (
@@ -172,6 +183,24 @@ async def about_page():
     return FileResponse(frontend_path / "about.html")
 
 
+@app.get("/ranking")
+async def ranking_page():
+    """ランキングページを返す"""
+    return FileResponse(frontend_path / "ranking.html")
+
+
+@app.get("/shops")
+async def shops_page():
+    """ショップ一覧ページを返す"""
+    return FileResponse(frontend_path / "shops.html")
+
+
+@app.get("/favorites")
+async def favorites_page():
+    """お気に入りページを返す"""
+    return FileResponse(frontend_path / "favorites.html")
+
+
 @app.get("/robots.txt")
 async def robots_txt():
     """robots.txtを返す"""
@@ -182,6 +211,12 @@ async def robots_txt():
 async def ads_txt():
     """ads.txtを返す"""
     return FileResponse(frontend_path / "ads.txt", media_type="text/plain")
+
+
+@app.get("/sitemap.xml")
+async def sitemap_xml():
+    """sitemap.xmlを返す"""
+    return FileResponse(frontend_path / "sitemap.xml", media_type="application/xml")
 
 
 @app.get("/api/image-proxy")
@@ -347,6 +382,54 @@ async def get_home_data():
         "batch_logs": batch_logs,
         "featured_keywords": featured_keywords_list,
     }
+
+
+@app.get("/api/ranking")
+async def get_ranking_data():
+    """
+    ランキングページ用データを取得
+    """
+    # 人気検索キーワード（過去30日）
+    keyword_ranking = get_keyword_ranking(days=30, limit=30)
+
+    # 人気カード（クリック数、過去30日）
+    hot_cards = get_hot_cards(days=30, limit=30)
+
+    # 値上がりカード
+    price_up = get_price_increased_cards(limit=30)
+
+    # 値下がりカード
+    price_down = get_price_decreased_cards(limit=30)
+
+    return {
+        "keyword_ranking": keyword_ranking,
+        "hot_cards": hot_cards,
+        "price_up": price_up,
+        "price_down": price_down,
+    }
+
+
+@app.get("/api/shops")
+async def get_shops_data():
+    """
+    ショップ一覧ページ用データを取得
+    """
+    shops = get_all_shops(active_only=True)
+
+    # ショップ情報に追加データを付与
+    shop_list = []
+    for shop in shops:
+        shop_dict = shop.to_dict()
+        # ショップごとの価格データ数を取得
+        with get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT COUNT(*) FROM prices WHERE shop_id = ?",
+                (shop.id,)
+            )
+            shop_dict["price_count"] = cursor.fetchone()[0]
+        shop_list.append(shop_dict)
+
+    return {"shops": shop_list}
 
 
 @app.get("/api/redirect")
@@ -1106,6 +1189,141 @@ async def reorder_rakuten_products_api(
     """楽天商品の表示順を変更"""
     reorder_rakuten_products(data.product_ids)
     return {"message": "表示順を更新しました"}
+
+
+# =============================================================================
+# アクセス解析API
+# =============================================================================
+
+@app.get("/api/admin/analytics/searches")
+async def get_analytics_searches(
+    period: str = Query("daily", description="集計期間: daily, weekly, monthly"),
+    days: int = Query(30, ge=1, le=365, description="取得日数"),
+    admin_user: User = Depends(require_admin)
+):
+    """検索統計を取得"""
+    stats = get_search_stats(period=period, days=days)
+    return {"period": period, "days": days, "stats": stats}
+
+
+@app.get("/api/admin/analytics/clicks")
+async def get_analytics_clicks(
+    period: str = Query("daily", description="集計期間: daily, weekly, monthly"),
+    days: int = Query(30, ge=1, le=365, description="取得日数"),
+    admin_user: User = Depends(require_admin)
+):
+    """クリック統計を取得"""
+    stats = get_click_stats(period=period, days=days)
+    return {"period": period, "days": days, "stats": stats}
+
+
+@app.get("/api/admin/analytics/keywords")
+async def get_analytics_keywords(
+    days: int = Query(30, ge=1, le=365, description="取得日数"),
+    limit: int = Query(20, ge=1, le=100, description="取得件数"),
+    admin_user: User = Depends(require_admin)
+):
+    """人気検索キーワードランキングを取得"""
+    ranking = get_keyword_ranking(days=days, limit=limit)
+    return {"days": days, "ranking": ranking}
+
+
+@app.get("/api/admin/analytics/shops")
+async def get_analytics_shops(
+    days: int = Query(30, ge=1, le=365, description="取得日数"),
+    admin_user: User = Depends(require_admin)
+):
+    """ショップ別クリック数を取得"""
+    ranking = get_shop_click_ranking(days=days)
+    return {"days": days, "ranking": ranking}
+
+
+@app.get("/api/admin/analytics/cards")
+async def get_analytics_cards(
+    days: int = Query(30, ge=1, le=365, description="取得日数"),
+    limit: int = Query(20, ge=1, le=100, description="取得件数"),
+    admin_user: User = Depends(require_admin)
+):
+    """人気カードランキング（クリック数）を取得"""
+    ranking = get_card_click_ranking(days=days, limit=limit)
+    return {"days": days, "ranking": ranking}
+
+
+# =============================================================================
+# ユーザー管理API
+# =============================================================================
+
+@app.get("/api/admin/users")
+async def get_admin_users(
+    limit: int = Query(20, ge=1, le=100, description="取得件数"),
+    offset: int = Query(0, ge=0, description="オフセット"),
+    search: str = Query(None, description="検索キーワード"),
+    admin_user: User = Depends(require_admin)
+):
+    """ユーザー一覧を取得（ページネーション対応）"""
+    users, total = get_users_paginated(limit=limit, offset=offset, search=search)
+    return {
+        "users": [u.to_dict() for u in users],
+        "total": total,
+        "limit": limit,
+        "offset": offset
+    }
+
+
+class UserStatusUpdate(BaseModel):
+    is_active: int
+
+
+@app.put("/api/admin/users/{user_id}/status")
+async def update_user_status(
+    user_id: int,
+    data: UserStatusUpdate,
+    admin_user: User = Depends(require_admin)
+):
+    """ユーザーのBAN/BAN解除"""
+    if data.is_active not in (0, 1):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="is_activeは0または1である必要があります"
+        )
+
+    user = update_user_is_active(user_id, data.is_active, admin_user.id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ユーザーが見つからないか、自分自身は変更できません"
+        )
+
+    action = "BAN解除" if data.is_active else "BAN"
+    return {"message": f"ユーザーを{action}しました", "user": user.to_dict()}
+
+
+class UserRoleUpdate(BaseModel):
+    role: str
+
+
+@app.put("/api/admin/users/{user_id}/role")
+async def update_user_role_api(
+    user_id: int,
+    data: UserRoleUpdate,
+    admin_user: User = Depends(require_admin)
+):
+    """ユーザーの権限を変更"""
+    if data.role not in ('user', 'admin'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="roleはuserまたはadminである必要があります"
+        )
+
+    user = update_user_role(user_id, data.role, admin_user.id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ユーザーが見つからないか、自分自身は変更できません"
+        )
+
+    action = "管理者権限を付与" if data.role == 'admin' else "一般ユーザーに変更"
+    return {"message": f"{action}しました", "user": user.to_dict()}
 
 
 if __name__ == "__main__":

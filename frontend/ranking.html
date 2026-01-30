@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="バトルスピリッツのカード人気ランキング。検索数、クリック数、価格変動でランキング表示。">
+    <title>ランキング | BSPrice - バトスピ価格比較</title>
+    <!-- OGP -->
+    <meta property="og:title" content="ランキング | BSPrice - バトスピ価格比較">
+    <meta property="og:description" content="バトルスピリッツのカード人気ランキング。検索数、クリック数、価格変動でランキング表示。">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://bsprice.net/ranking">
+    <meta property="og:site_name" content="BSPrice">
+    <meta property="og:locale" content="ja_JP">
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="ランキング | BSPrice - バトスピ価格比較">
+    <meta name="twitter:description" content="バトルスピリッツのカード人気ランキング。検索数、クリック数、価格変動でランキング表示。">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <!-- ヘッダー -->
+    <header class="site-header">
+        <div class="header-inner">
+            <a href="/" class="site-logo">
+                <div class="logo-icon">BS</div>
+                <div class="logo-text-group">
+                    <span class="logo-text">BSPrice</span>
+                    <span class="logo-sub">バトスピ価格比較</span>
+                </div>
+            </a>
+            <nav class="site-nav">
+                <a href="/">トップ</a>
+                <a href="/ranking" class="active">ランキング</a>
+                <a href="/shops">ショップ一覧</a>
+            </nav>
+            <div id="user-menu" class="user-menu"></div>
+        </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container">
+            <div class="search-section" style="padding-bottom: 10px;">
+                <h1 class="search-title">ランキング</h1>
+                <p class="search-subtitle">過去30日間の人気カード・価格変動</p>
+            </div>
+
+            <div id="ranking-content" class="ranking-content">
+                <!-- タブナビゲーション -->
+                <div class="ranking-tabs">
+                    <button class="ranking-tab active" data-tab="keywords">人気キーワード</button>
+                    <button class="ranking-tab" data-tab="cards">人気カード</button>
+                    <button class="ranking-tab" data-tab="price-up">値上がり</button>
+                    <button class="ranking-tab" data-tab="price-down">値下がり</button>
+                </div>
+
+                <!-- 人気キーワード -->
+                <div class="ranking-tab-content active" id="tab-keywords">
+                    <h2>人気検索キーワード TOP30</h2>
+                    <p class="section-desc">過去30日間でよく検索されたキーワード</p>
+                    <div id="keyword-ranking" class="public-ranking-list"></div>
+                </div>
+
+                <!-- 人気カード -->
+                <div class="ranking-tab-content" id="tab-cards">
+                    <h2>人気カード TOP30</h2>
+                    <p class="section-desc">過去30日間でよくクリックされたカード</p>
+                    <div id="card-ranking" class="public-ranking-list"></div>
+                </div>
+
+                <!-- 値上がり -->
+                <div class="ranking-tab-content" id="tab-price-up">
+                    <h2>値上がりカード TOP30</h2>
+                    <p class="section-desc">最近値上がりしたカード</p>
+                    <div id="price-up-ranking" class="public-ranking-list"></div>
+                </div>
+
+                <!-- 値下がり -->
+                <div class="ranking-tab-content" id="tab-price-down">
+                    <h2>値下がりカード TOP30</h2>
+                    <p class="section-desc">最近値下がりしたカード</p>
+                    <div id="price-down-ranking" class="public-ranking-list"></div>
+                </div>
+            </div>
+
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>読み込み中...</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- フッター -->
+    <footer class="site-footer">
+        <div class="footer-inner">
+            <div class="footer-links">
+                <div class="footer-section">
+                    <h4>ページ</h4>
+                    <a href="/">トップ</a>
+                    <a href="/ranking">ランキング</a>
+                    <a href="/shops">ショップ一覧</a>
+                </div>
+                <div class="footer-section">
+                    <h4>対応ショップ</h4>
+                    <span>カードラッシュ</span>
+                    <span>Tier One</span>
+                    <span>フルアヘッド</span>
+                    <span>ホビーステーション</span>
+                    <span>バトスキ</span>
+                    <span>遊々亭</span>
+                </div>
+                <div class="footer-section">
+                    <h4>その他</h4>
+                    <a href="/login">ログイン</a>
+                    <a href="/about">このサイトについて</a>
+                    <a href="/privacy">プライバシーポリシー</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 BSPrice - バトスピ価格比較</p>
+                <p class="footer-note">※価格は各ショップの在庫状況により変動します</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="/static/auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const loadingEl = document.getElementById('loading');
+            const contentEl = document.getElementById('ranking-content');
+
+            // タブ切り替え設定
+            setupTabs();
+
+            // データ読み込み
+            await loadRankingData();
+
+            loadingEl.classList.add('hidden');
+            contentEl.classList.remove('hidden');
+        });
+
+        function setupTabs() {
+            const tabs = document.querySelectorAll('.ranking-tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+
+                    const tabId = tab.dataset.tab;
+                    document.querySelectorAll('.ranking-tab-content').forEach(content => {
+                        content.classList.remove('active');
+                    });
+                    document.getElementById(`tab-${tabId}`).classList.add('active');
+                });
+            });
+        }
+
+        async function loadRankingData() {
+            try {
+                const response = await fetch('/api/ranking');
+                if (!response.ok) throw new Error('Failed to load ranking data');
+                const data = await response.json();
+
+                renderKeywordRanking(data.keyword_ranking);
+                renderCardRanking(data.hot_cards);
+                renderPriceUpRanking(data.price_up);
+                renderPriceDownRanking(data.price_down);
+            } catch (e) {
+                console.error('Failed to load ranking:', e);
+            }
+        }
+
+        function renderKeywordRanking(keywords) {
+            const container = document.getElementById('keyword-ranking');
+            if (!keywords || keywords.length === 0) {
+                container.innerHTML = '<p class="no-data">データがありません</p>';
+                return;
+            }
+
+            const maxCount = Math.max(...keywords.map(k => k.count));
+
+            container.innerHTML = keywords.map((item, index) => {
+                const percentage = maxCount > 0 ? (item.count / maxCount * 100) : 0;
+                return `
+                    <a href="/search?q=${encodeURIComponent(item.keyword)}" class="public-ranking-item">
+                        <span class="rank ${getRankClass(index + 1)}">${index + 1}</span>
+                        <span class="name">${escapeHtml(item.keyword)}</span>
+                        <div class="bar-container">
+                            <div class="bar" style="width: ${percentage}%;"></div>
+                        </div>
+                        <span class="count">${item.count.toLocaleString()}回</span>
+                    </a>
+                `;
+            }).join('');
+        }
+
+        function renderCardRanking(cards) {
+            const container = document.getElementById('card-ranking');
+            if (!cards || cards.length === 0) {
+                container.innerHTML = '<p class="no-data">データがありません</p>';
+                return;
+            }
+
+            const maxCount = Math.max(...cards.map(c => c.click_count));
+
+            container.innerHTML = cards.map((item, index) => {
+                const percentage = maxCount > 0 ? (item.click_count / maxCount * 100) : 0;
+                return `
+                    <a href="/search?q=${encodeURIComponent(item.card_name)}" class="public-ranking-item">
+                        <span class="rank ${getRankClass(index + 1)}">${index + 1}</span>
+                        <span class="name">${escapeHtml(item.card_name)}</span>
+                        <div class="bar-container">
+                            <div class="bar" style="width: ${percentage}%;"></div>
+                        </div>
+                        <span class="count">${item.click_count.toLocaleString()}クリック</span>
+                    </a>
+                `;
+            }).join('');
+        }
+
+        function renderPriceUpRanking(cards) {
+            const container = document.getElementById('price-up-ranking');
+            if (!cards || cards.length === 0) {
+                container.innerHTML = '<p class="no-data">データがありません</p>';
+                return;
+            }
+
+            container.innerHTML = cards.map((item, index) => `
+                <a href="/search?q=${encodeURIComponent(item.card_name)}" class="public-ranking-item price-change">
+                    <span class="rank ${getRankClass(index + 1)}">${index + 1}</span>
+                    <span class="name">${escapeHtml(item.card_name)}</span>
+                    <span class="shop">${escapeHtml(item.shop_name)}</span>
+                    <span class="price-diff up">+${item.diff.toLocaleString()}円</span>
+                    <span class="price-range">${item.old_price.toLocaleString()}円 → ${item.new_price.toLocaleString()}円</span>
+                </a>
+            `).join('');
+        }
+
+        function renderPriceDownRanking(cards) {
+            const container = document.getElementById('price-down-ranking');
+            if (!cards || cards.length === 0) {
+                container.innerHTML = '<p class="no-data">データがありません</p>';
+                return;
+            }
+
+            container.innerHTML = cards.map((item, index) => `
+                <a href="/search?q=${encodeURIComponent(item.card_name)}" class="public-ranking-item price-change">
+                    <span class="rank ${getRankClass(index + 1)}">${index + 1}</span>
+                    <span class="name">${escapeHtml(item.card_name)}</span>
+                    <span class="shop">${escapeHtml(item.shop_name)}</span>
+                    <span class="price-diff down">-${item.diff.toLocaleString()}円</span>
+                    <span class="price-range">${item.old_price.toLocaleString()}円 → ${item.new_price.toLocaleString()}円</span>
+                </a>
+            `).join('');
+        }
+
+        function getRankClass(rank) {
+            if (rank === 1) return 'gold';
+            if (rank === 2) return 'silver';
+            if (rank === 3) return 'bronze';
+            return '';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+
+    <style>
+        .ranking-content {
+            display: none;
+        }
+
+        .ranking-content:not(.hidden) {
+            display: block;
+        }
+
+        .ranking-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .ranking-tab {
+            padding: 10px 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-dark);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+        }
+
+        .ranking-tab:hover {
+            background: var(--bg-card-hover);
+            color: var(--text-primary);
+        }
+
+        .ranking-tab.active {
+            background: linear-gradient(135deg, var(--sapphire) 0%, var(--amethyst) 100%);
+            color: white;
+            border-color: transparent;
+        }
+
+        .ranking-tab-content {
+            display: none;
+        }
+
+        .ranking-tab-content.active {
+            display: block;
+        }
+
+        .ranking-tab-content h2 {
+            font-size: 1.3rem;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .section-desc {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+        }
+
+        .public-ranking-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .public-ranking-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 18px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-dark);
+            border-radius: 10px;
+            text-decoration: none;
+            color: var(--text-primary);
+            transition: all 0.2s;
+        }
+
+        .public-ranking-item:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--sapphire);
+            transform: translateX(4px);
+        }
+
+        .public-ranking-item .rank {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-dark);
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+
+        .public-ranking-item .rank.gold {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            color: #1a1a1a;
+        }
+
+        .public-ranking-item .rank.silver {
+            background: linear-gradient(135deg, #C0C0C0, #A0A0A0);
+            color: #1a1a1a;
+        }
+
+        .public-ranking-item .rank.bronze {
+            background: linear-gradient(135deg, #CD7F32, #A0522D);
+            color: white;
+        }
+
+        .public-ranking-item .name {
+            flex: 1;
+            font-weight: 500;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .public-ranking-item .bar-container {
+            width: 120px;
+            height: 8px;
+            background: var(--bg-dark);
+            border-radius: 4px;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .public-ranking-item .bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--sapphire), var(--amethyst));
+            border-radius: 4px;
+        }
+
+        .public-ranking-item .count {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            min-width: 80px;
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        .public-ranking-item.price-change {
+            flex-wrap: wrap;
+        }
+
+        .public-ranking-item .shop {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            background: var(--bg-dark);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .public-ranking-item .price-diff {
+            font-weight: 700;
+            min-width: 90px;
+            text-align: right;
+        }
+
+        .public-ranking-item .price-diff.up {
+            color: var(--ruby);
+        }
+
+        .public-ranking-item .price-diff.down {
+            color: var(--emerald);
+        }
+
+        .public-ranking-item .price-range {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            min-width: 180px;
+            text-align: right;
+        }
+
+        @media (max-width: 768px) {
+            .ranking-tabs {
+                gap: 6px;
+            }
+
+            .ranking-tab {
+                padding: 10px 14px;
+                font-size: 0.8rem;
+                flex: 1 1 calc(50% - 6px);
+                text-align: center;
+            }
+
+            .ranking-tab-content h2 {
+                font-size: 1.1rem;
+            }
+
+            .section-desc {
+                font-size: 0.8rem;
+            }
+
+            .public-ranking-item {
+                padding: 12px;
+                gap: 10px;
+            }
+
+            .public-ranking-item .rank {
+                width: 28px;
+                height: 28px;
+                font-size: 0.8rem;
+            }
+
+            .public-ranking-item .name {
+                font-size: 0.85rem;
+            }
+
+            .public-ranking-item .bar-container {
+                display: none;
+            }
+
+            .public-ranking-item .count {
+                min-width: auto;
+                font-size: 0.75rem;
+            }
+
+            .public-ranking-item.price-change {
+                flex-wrap: wrap;
+            }
+
+            .public-ranking-item.price-change .rank {
+                order: 0;
+            }
+
+            .public-ranking-item.price-change .name {
+                flex: 1;
+                order: 1;
+            }
+
+            .public-ranking-item.price-change .price-diff {
+                order: 2;
+                min-width: auto;
+                font-size: 0.85rem;
+            }
+
+            .public-ranking-item.price-change .shop {
+                order: 3;
+                flex-basis: 100%;
+                margin-top: 6px;
+            }
+
+            .public-ranking-item.price-change .price-range {
+                display: none;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .ranking-tab {
+                padding: 8px 10px;
+                font-size: 0.75rem;
+            }
+
+            .public-ranking-item {
+                padding: 10px;
+            }
+
+            .public-ranking-item .name {
+                font-size: 0.8rem;
+            }
+        }
+    </style>
+</body>
+</html>
