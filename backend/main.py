@@ -88,6 +88,8 @@ from database import (
     get_all_admin_invites,
     get_admin_stats,
     get_card_by_id,
+    get_card_all_prices,
+    get_card_price_history,
     get_or_create_card_v2,
     update_popular_cards,
     # 人気キーワード関連
@@ -199,6 +201,12 @@ async def shops_page():
 async def favorites_page():
     """お気に入りページを返す"""
     return FileResponse(frontend_path / "favorites.html")
+
+
+@app.get("/card/{card_id}")
+async def card_page(card_id: int):
+    """カード詳細ページを返す"""
+    return FileResponse(frontend_path / "card.html")
 
 
 @app.get("/robots.txt")
@@ -430,6 +438,31 @@ async def get_shops_data():
         shop_list.append(shop_dict)
 
     return {"shops": shop_list}
+
+
+@app.get("/api/card/{card_id}")
+async def get_card_detail(card_id: int):
+    """
+    カード詳細情報を取得（カード詳細ページ用）
+    """
+    card = get_card_by_id(card_id)
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+
+    # 全ショップの価格を取得
+    prices = get_card_all_prices(card_id)
+
+    # 価格履歴を取得
+    price_history = get_card_price_history(card_id, days=30)
+
+    return {
+        "card": card.to_dict(),
+        "prices": [p.to_dict() for p in prices],
+        "price_history": price_history,
+        "min_price": min(p.price for p in prices) if prices else None,
+        "max_price": max(p.price for p in prices) if prices else None,
+        "shop_count": len(prices),
+    }
 
 
 @app.get("/api/redirect")

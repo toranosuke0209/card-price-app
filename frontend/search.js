@@ -177,14 +177,18 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }
 
+        // カード詳細ページへのリンク
+        const cardDetailUrl = product.card_id ? `/card/${product.card_id}` : null;
+
         return `
             <div class="product-card">
                 ${imageHtml}
-                <span class="site-badge ${siteClass}">${escapeHtml(product.site)}</span>
+                <a href="${redirectUrl}" target="_blank" rel="noopener" class="site-badge ${siteClass}">${escapeHtml(product.site)}</a>
                 <div class="product-name">
-                    <a href="${redirectUrl}" target="_blank" rel="noopener">
-                        ${escapeHtml(product.name)}
-                    </a>
+                    ${cardDetailUrl
+                        ? `<a href="${cardDetailUrl}">${escapeHtml(product.name)}</a>`
+                        : escapeHtml(product.name)
+                    }
                 </div>
                 <div class="product-price-stock">
                     <div class="product-price">${escapeHtml(product.price_text)}</div>

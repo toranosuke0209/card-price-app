@@ -516,6 +516,48 @@ def get_latest_price(card_id: int, shop_id: int) -> Optional[Price]:
         return Price(**dict(row)) if row else None
 
 
+def get_card_all_prices(card_id: int) -> list[Price]:
+    """カードIDで全ショップの最新価格を取得（カード詳細ページ用）"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT p.*, c.name as card_name, s.name as shop_name
+            FROM prices p
+            JOIN cards c ON p.card_id = c.id
+            JOIN shops s ON p.shop_id = s.id
+            WHERE p.card_id = ?
+            AND p.id IN (
+                SELECT MAX(id) FROM prices
+                WHERE card_id = ?
+                GROUP BY shop_id
+            )
+            ORDER BY p.price ASC
+        """, (card_id, card_id))
+        rows = cursor.fetchall()
+        return [Price(**dict(row)) for row in rows]
+
+
+def get_card_price_history(card_id: int, days: int = 30) -> list[dict]:
+    """カードの価格履歴を取得（グラフ表示用）"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT
+                DATE(p.fetched_at) as date,
+                MIN(p.price) as min_price,
+                AVG(p.price) as avg_price,
+                MAX(p.price) as max_price,
+                COUNT(DISTINCT p.shop_id) as shop_count
+            FROM prices p
+            WHERE p.card_id = ?
+            AND p.fetched_at > datetime('now', ? || ' days')
+            GROUP BY DATE(p.fetched_at)
+            ORDER BY date ASC
+        """, (card_id, -days))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+
 # =============================================================================
 # ホーム画面用クエリ
 # =============================================================================

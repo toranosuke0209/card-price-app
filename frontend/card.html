@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="バトルスピリッツのカード価格を複数ショップで比較">
+    <title>カード詳細 | BSPrice - バトスピ価格比較</title>
+    <!-- OGP -->
+    <meta property="og:title" content="カード詳細 | BSPrice - バトスピ価格比較">
+    <meta property="og:description" content="バトルスピリッツのカード価格を複数ショップで比較">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://bsprice.net/card/">
+    <meta property="og:site_name" content="BSPrice">
+    <meta property="og:locale" content="ja_JP">
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="カード詳細 | BSPrice - バトスピ価格比較">
+    <meta name="twitter:description" content="バトルスピリッツのカード価格を複数ショップで比較">
+    <link rel="stylesheet" href="/static/style.css">
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2167017279500518"
+         crossorigin="anonymous"></script>
+    <style>
+        .card-detail {
+            background: var(--card-background);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+        .card-header {
+            display: flex;
+            gap: 24px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+        .card-image {
+            flex-shrink: 0;
+        }
+        .card-image img {
+            width: 200px;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .card-info {
+            flex: 1;
+            min-width: 250px;
+        }
+        .card-name {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+        }
+        .card-stats {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+        .stat-item {
+            text-align: center;
+        }
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--accent-color);
+        }
+        .external-links {
+            margin-top: 16px;
+        }
+        .external-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            background: var(--button-secondary-bg);
+            color: var(--text-primary);
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+        }
+        .external-link:hover {
+            background: var(--button-secondary-hover);
+        }
+        .price-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .price-table th,
+        .price-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .price-table th {
+            background: var(--background-secondary);
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+        .price-table tr:hover {
+            background: var(--background-secondary);
+        }
+        .price-value {
+            font-weight: bold;
+            color: var(--accent-color);
+            font-size: 1.1rem;
+        }
+        .price-lowest {
+            color: #4ade80;
+        }
+        .stock-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+        .stock-available {
+            background: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+        }
+        .stock-soldout {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        .shop-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 12px;
+            background: var(--accent-color);
+            color: white;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 0.85rem;
+            transition: opacity 0.2s;
+        }
+        .shop-link:hover {
+            opacity: 0.8;
+        }
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--accent-color);
+        }
+        .breadcrumb {
+            margin-bottom: 16px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+        .breadcrumb a {
+            color: var(--accent-color);
+            text-decoration: none;
+        }
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+        @media (max-width: 768px) {
+            .card-header {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+            }
+            .card-stats {
+                justify-content: center;
+            }
+            .price-table {
+                font-size: 0.9rem;
+            }
+            .price-table th,
+            .price-table td {
+                padding: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- ヘッダー -->
+    <header class="site-header">
+        <div class="header-inner">
+            <a href="/" class="site-logo">
+                <div class="logo-icon">BS</div>
+                <div class="logo-text-group">
+                    <span class="logo-text">BSPrice</span>
+                    <span class="logo-sub">バトスピ価格比較</span>
+                </div>
+            </a>
+            <nav class="site-nav">
+                <a href="/">トップ</a>
+                <a href="/ranking">ランキング</a>
+                <a href="/shops">ショップ一覧</a>
+            </nav>
+            <div id="user-menu" class="user-menu"></div>
+        </div>
+    </header>
+
+    <!-- 広告エリア（ヘッダー下） -->
+    <div class="ad-banner ad-header">
+        <div class="ad-placeholder">広告</div>
+    </div>
+
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container">
+            <!-- パンくずリスト -->
+            <div class="breadcrumb">
+                <a href="/">トップ</a> &gt; <span id="breadcrumb-card">カード詳細</span>
+            </div>
+
+            <!-- ローディング -->
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>読み込み中...</p>
+            </div>
+
+            <!-- エラー -->
+            <div id="error" class="error hidden"></div>
+
+            <!-- カード詳細 -->
+            <div id="card-detail" class="card-detail hidden">
+                <div class="card-header">
+                    <div class="card-image">
+                        <img id="card-image" src="" alt="">
+                    </div>
+                    <div class="card-info">
+                        <h1 id="card-name" class="card-name"></h1>
+                        <div class="card-stats">
+                            <div class="stat-item">
+                                <div class="stat-label">最安値</div>
+                                <div id="min-price" class="stat-value">-</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">最高値</div>
+                                <div id="max-price" class="stat-value">-</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">取扱店舗</div>
+                                <div id="shop-count" class="stat-value">-</div>
+                            </div>
+                        </div>
+                        <div class="external-links">
+                            <a id="batspi-link" href="#" target="_blank" rel="noopener" class="external-link">
+                                バトスピWikiで詳細を見る
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 価格比較テーブル -->
+                <h2 class="section-title">ショップ別価格比較</h2>
+                <table class="price-table">
+                    <thead>
+                        <tr>
+                            <th>ショップ</th>
+                            <th>価格</th>
+                            <th>在庫</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="price-table-body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- 広告エリア（フッター上） -->
+    <div class="ad-banner ad-footer">
+        <div class="ad-placeholder">広告</div>
+    </div>
+
+    <!-- フッター -->
+    <footer class="site-footer">
+        <div class="footer-inner">
+            <div class="footer-links">
+                <div class="footer-section">
+                    <h4>ページ</h4>
+                    <a href="/">トップ</a>
+                    <a href="/ranking">ランキング</a>
+                    <a href="/shops">ショップ一覧</a>
+                </div>
+                <div class="footer-section">
+                    <h4>対応ショップ</h4>
+                    <span>カードラッシュ</span>
+                    <span>Tier One</span>
+                    <span>フルアヘッド</span>
+                    <span>ホビーステーション</span>
+                    <span>バトスキ</span>
+                    <span>遊々亭</span>
+                </div>
+                <div class="footer-section">
+                    <h4>その他</h4>
+                    <a href="/login">ログイン</a>
+                    <a href="/about">このサイトについて</a>
+                    <a href="/privacy">プライバシーポリシー</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 BSPrice - バトスピ価格比較</p>
+                <p class="footer-note">※価格は各ショップの在庫状況により変動します</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="/static/auth.js"></script>
+    <script>
+        // カードIDをURLから取得
+        const pathParts = window.location.pathname.split('/');
+        const cardId = pathParts[pathParts.length - 1];
+
+        // 要素
+        const loadingEl = document.getElementById('loading');
+        const errorEl = document.getElementById('error');
+        const cardDetailEl = document.getElementById('card-detail');
+        const cardNameEl = document.getElementById('card-name');
+        const cardImageEl = document.getElementById('card-image');
+        const minPriceEl = document.getElementById('min-price');
+        const maxPriceEl = document.getElementById('max-price');
+        const shopCountEl = document.getElementById('shop-count');
+        const batspiLinkEl = document.getElementById('batspi-link');
+        const breadcrumbCardEl = document.getElementById('breadcrumb-card');
+        const priceTableBodyEl = document.getElementById('price-table-body');
+
+        // 価格フォーマット
+        function formatPrice(price) {
+            return price.toLocaleString() + '円';
+        }
+
+        // カード詳細を読み込む
+        async function loadCardDetail() {
+            try {
+                const response = await fetch(`/api/card/${cardId}`);
+                if (!response.ok) {
+                    throw new Error('カードが見つかりません');
+                }
+
+                const data = await response.json();
+
+                // タイトルを更新
+                document.title = `${data.card.name} | BSPrice - バトスピ価格比較`;
+                cardNameEl.textContent = data.card.name;
+                breadcrumbCardEl.textContent = data.card.name;
+
+                // 画像（最初の価格データから取得）
+                if (data.prices.length > 0 && data.prices[0].image_url) {
+                    const imageUrl = data.prices[0].image_url;
+                    // ホビステの画像はプロキシ経由
+                    if (imageUrl.includes('hobbystation')) {
+                        cardImageEl.src = `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+                    } else {
+                        cardImageEl.src = imageUrl;
+                    }
+                    cardImageEl.alt = data.card.name;
+                } else {
+                    cardImageEl.style.display = 'none';
+                }
+
+                // 統計
+                minPriceEl.textContent = data.min_price ? formatPrice(data.min_price) : '-';
+                maxPriceEl.textContent = data.max_price ? formatPrice(data.max_price) : '-';
+                shopCountEl.textContent = data.shop_count + '店舗';
+
+                // batspi.comへのリンク
+                const batspiSearchUrl = `https://batspi.com/index.php?cmd=read&page=${encodeURIComponent(data.card.name)}&word=${encodeURIComponent(data.card.name)}`;
+                batspiLinkEl.href = batspiSearchUrl;
+
+                // 価格テーブル
+                const minPrice = data.min_price;
+                priceTableBodyEl.innerHTML = data.prices.map(price => {
+                    const isLowest = price.price === minPrice;
+                    const stockClass = price.stock > 0 ? 'stock-available' : 'stock-soldout';
+                    const stockText = price.stock > 0 ? `在庫あり (${price.stock_text || price.stock})` : '売り切れ';
+                    const redirectUrl = `/api/redirect?url=${encodeURIComponent(price.url)}&site=${encodeURIComponent(price.shop_name)}&card=${encodeURIComponent(data.card.name)}`;
+
+                    return `
+                        <tr>
+                            <td>${price.shop_name}</td>
+                            <td class="price-value ${isLowest ? 'price-lowest' : ''}">${formatPrice(price.price)}</td>
+                            <td><span class="stock-badge ${stockClass}">${stockText}</span></td>
+                            <td><a href="${redirectUrl}" target="_blank" rel="noopener" class="shop-link">購入ページへ</a></td>
+                        </tr>
+                    `;
+                }).join('');
+
+                // 表示切り替え
+                loadingEl.classList.add('hidden');
+                cardDetailEl.classList.remove('hidden');
+
+            } catch (error) {
+                console.error('Error loading card detail:', error);
+                loadingEl.classList.add('hidden');
+                errorEl.textContent = error.message || 'エラーが発生しました';
+                errorEl.classList.remove('hidden');
+            }
+        }
+
+        // 初期化
+        if (cardId && !isNaN(cardId)) {
+            loadCardDetail();
+        } else {
+            loadingEl.classList.add('hidden');
+            errorEl.textContent = '無効なカードIDです';
+            errorEl.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
