@@ -33,9 +33,9 @@ def extract_card_number(name: str) -> Optional[str]:
     カード名からカード番号を抽出
 
     パターン例:
-    - BS01-001, BSC48-X02 (ブースター)
-    - SD01-001 (スターター)
-    - CB01-001 (コラボ)
+    - BS01-001, BSC48-X02, BS52-RV007 (ブースター)
+    - SD01-001, SD58-CP01 (スターター)
+    - CB01-001, BSC46-CX04 (コラボ)
     - PB01-001, P-001 (プロモ)
     - LM01-001 (リミテッド)
     - CP01-001 (キャンペーン)
@@ -45,12 +45,14 @@ def extract_card_number(name: str) -> Optional[str]:
 
     # カード番号パターン（優先度順）
     patterns = [
-        # 標準パターン: BS01-001, BSC48-X02, SD01-001, CB01-001等
-        r'([A-Z]{2,3}\d{1,2}-[A-Z]?\d{1,3})',
+        # 《》括弧内のパターン（最優先）: 《BSC46-CX04》
+        r'《([A-Z]{2,3}\d{1,2}-[A-Z]{0,2}\d{1,3})》',
+        # 標準パターン: BS01-001, BSC48-X02, SD01-001, BS52-RV007, BSC46-CX04等
+        r'([A-Z]{2,3}\d{1,2}-[A-Z]{0,2}\d{1,3})',
         # プロモパターン: P-001, X-001
         r'([PX]-\d{1,3})',
-        # 括弧内のパターン
-        r'[（\(]([A-Z]{2,3}\d{1,2}-[A-Z]?\d{1,3})[）\)]',
+        # ()括弧内のパターン
+        r'[（\(]([A-Z]{2,3}\d{1,2}-[A-Z]{0,2}\d{1,3})[）\)]',
         r'[（\(]([PX]-\d{1,3})[）\)]',
     ]
 
@@ -70,19 +72,74 @@ def extract_base_card_name(name: str) -> str:
     # NFKC正規化
     normalized = unicodedata.normalize("NFKC", name)
 
-    # カード番号を除去
-    result = re.sub(r'[（\(][A-Z]{2,3}\d{1,2}-[A-Z]?\d{1,3}[）\)]', '', normalized)
+    # カード番号を除去（改良版パターン）
+    result = re.sub(r'《[A-Z]{2,3}\d{1,2}-[A-Z]{0,2}\d{1,3}》', '', normalized)
+    result = re.sub(r'[（\(][A-Z]{2,3}\d{1,2}-[A-Z]{0,2}\d{1,3}[）\)]', '', result)
     result = re.sub(r'[（\(][PX]-\d{1,3}[）\)]', '', result)
-    result = re.sub(r'[A-Z]{2,3}\d{1,2}-[A-Z]?\d{1,3}', '', result)
+    result = re.sub(r'[A-Z]{2,3}\d{1,2}-[A-Z]{0,2}\d{1,3}', '', result)
 
     # レアリティ記号を除去 [X], [M], [R]等
     result = re.sub(r'\[[A-Z]+\]', '', result)
     result = re.sub(r'【[^】]+】', '', result)
 
+    # 括弧内の装飾を除去（SECRET, WINNER, etc.）
+    result = re.sub(r'[（\(](SECRET|WINNER|Xレア加工|ペンタン|ヴィシュヌ)[）\)]', '', result)
+
     # 前後の空白・記号を除去
-    result = result.strip(' 　・-')
+    result = result.strip(' 　・-《》')
 
     return result
+
+
+def match_cards_by_name():
+    """
+    カード番号がないカードを、名前の類似度で他カードと紐付ける
+    遊々亭・ホビステなど番号のないショップ向け
+    """
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # 番号がないカードを取得
+        cursor.execute("""
+            SELECT c.id, c.name, c.base_name, c.name_normalized
+            FROM cards c
+            WHERE c.extracted_card_no IS NULL
+            AND c.base_name IS NOT NULL
+        """)
+        cards_without_no = cursor.fetchall()
+
+        # 番号があるカードの基本名とIDのマッピングを作成
+        cursor.execute("""
+            SELECT id, base_name, extracted_card_no
+            FROM cards
+            WHERE extracted_card_no IS NOT NULL
+            AND base_name IS NOT NULL
+        """)
+        cards_with_no = cursor.fetchall()
+
+        # base_nameでグループ化
+        base_name_to_card_no = {}
+        for card in cards_with_no:
+            bn = card['base_name']
+            if bn and bn not in base_name_to_card_no:
+                base_name_to_card_no[bn] = card['extracted_card_no']
+
+        # マッチング実行
+        matched = 0
+        for card in cards_without_no:
+            base_name = card['base_name']
+            if base_name and base_name in base_name_to_card_no:
+                # 完全一致でマッチ
+                card_no = base_name_to_card_no[base_name]
+                cursor.execute("""
+                    UPDATE cards SET extracted_card_no = ?
+                    WHERE id = ?
+                """, (card_no, card['id']))
+                matched += 1
+
+        conn.commit()
+        print(f"Matched {matched} cards by base name")
+        return matched
 
 
 @contextmanager
