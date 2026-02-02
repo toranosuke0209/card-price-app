@@ -764,6 +764,11 @@ body {
     box-shadow: 0 2px 12px rgba(20, 184, 166, 0.4);
 }
 
+.site-badge.dorasuta {
+    background: linear-gradient(135deg, #F97316 0%, #EA580C 100%);
+    box-shadow: 0 2px 12px rgba(249, 115, 22, 0.4);
+}
+
 .product-name {
     font-weight: 500;
     line-height: 1.5;
@@ -2631,7 +2636,7 @@ a.featured-keyword-tag {
 }
 
 .analytics-chart {
-    min-height: 200px;
+    min-height: 320px;
     padding: 20px 0;
 }
 
@@ -2640,7 +2645,7 @@ a.featured-keyword-tag {
     display: flex;
     align-items: flex-end;
     gap: 4px;
-    height: 180px;
+    height: 280px;
     padding: 10px 0;
     overflow-x: auto;
 }
@@ -2649,8 +2654,10 @@ a.featured-keyword-tag {
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: flex-end;
     min-width: 40px;
     flex: 1;
+    height: 250px;
 }
 
 .chart-bar {
@@ -3432,7 +3439,7 @@ a.featured-keyword-tag {
     }
 }
 
-/* ƒJ[ƒh“‡‹@”\ */
+/* ï¿½Jï¿½[ï¿½hï¿½ï¿½ï¿½ï¿½ï¿½@ï¿½\ */
 .card-group-create {
     background: var(--bg-card);
     border-radius: 12px;

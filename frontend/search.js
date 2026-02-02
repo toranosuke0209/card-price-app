@@ -216,6 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (siteName.includes('フルアヘッド')) return 'fullahead';
         if (siteName.includes('遊々亭')) return 'yuyutei';
         if (siteName.includes('ホビーステーション')) return 'hobbystation';
+        if (siteName.includes('ドラスタ')) return 'dorasuta';
         return '';
     }
 

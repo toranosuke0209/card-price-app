@@ -543,6 +543,7 @@ def init_shops():
         ("フルアヘッド", "https://fullahead-tcg.com/"),
         ("遊々亭", "https://yuyu-tei.jp/"),
         ("ホビーステーション", "https://hobbystation-single.jp/"),
+        ("ドラスタ", "https://dorasuta.jp/"),
     ]
 
     with get_connection() as conn:
@@ -632,6 +633,10 @@ def search_cards(keyword: str) -> list[Card]:
 def save_price(card_id: int, shop_id: int, price: int, stock: int,
                stock_text: str, url: str, image_url: str = "") -> int:
     """価格データを保存（常に新規レコード追加）"""
+    # stock_textに売切表示がある場合はstockを0に強制
+    if stock_text and ("×" in stock_text or "売切" in stock_text or "SOLD" in stock_text.upper()):
+        stock = 0
+
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -645,6 +650,10 @@ def save_price(card_id: int, shop_id: int, price: int, stock: int,
 def save_price_if_changed(card_id: int, shop_id: int, price: int, stock: int,
                           stock_text: str, url: str, image_url: str = "") -> Optional[int]:
     """価格に変更がある場合のみ保存"""
+    # stock_textに売切表示がある場合はstockを0に強制
+    if stock_text and ("×" in stock_text or "売切" in stock_text or "SOLD" in stock_text.upper()):
+        stock = 0
+
     with get_connection() as conn:
         cursor = conn.cursor()
 
@@ -2001,6 +2010,30 @@ def reorder_rakuten_products(product_ids: list[int]):
 # アクセス解析用関数
 # =============================================================================
 
+def _fill_missing_dates(data: list[dict], days: int, period: str = 'daily') -> list[dict]:
+    """欠損日を0で埋める"""
+    from datetime import datetime, timedelta
+
+    if period != 'daily':
+        return data
+
+    # 既存データを辞書化
+    data_dict = {item['date']: item['count'] for item in data}
+
+    # 今日からdays日前までの全日付を生成
+    today = datetime.now().date()
+    all_dates = []
+    for i in range(days):
+        d = today - timedelta(days=i)
+        date_str = d.strftime('%Y-%m-%d')
+        all_dates.append({
+            'date': date_str,
+            'count': data_dict.get(date_str, 0)
+        })
+
+    return all_dates
+
+
 def get_search_stats(period: str = 'daily', days: int = 30) -> list[dict]:
     """期間別検索数統計を取得
 
@@ -2043,7 +2076,8 @@ def get_search_stats(period: str = 'daily', days: int = 30) -> list[dict]:
             """, (f"-{days}",))
 
         rows = cursor.fetchall()
-        return [dict(row) for row in rows]
+        data = [dict(row) for row in rows]
+        return _fill_missing_dates(data, days, period)
 
 
 def get_click_stats(period: str = 'daily', days: int = 30) -> list[dict]:
@@ -2088,7 +2122,8 @@ def get_click_stats(period: str = 'daily', days: int = 30) -> list[dict]:
             """, (f"-{days}",))
 
         rows = cursor.fetchall()
-        return [dict(row) for row in rows]
+        data = [dict(row) for row in rows]
+        return _fill_missing_dates(data, days, period)
 
 
 def get_keyword_ranking(days: int = 30, limit: int = 20) -> list[dict]:

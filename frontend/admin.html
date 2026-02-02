@@ -3,6 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
     <title>管理画面 | BSPrice - バトスピ価格比較</title>
     <link rel="stylesheet" href="/static/style.css">
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2167017279500518"
@@ -278,10 +284,10 @@
 
                 <!-- アクセス解析タブ -->
                 <div class="admin-tab-content" id="tab-analytics">
-                    <!-- 期間選択 -->
+                    <!-- アクセス推移（検索・クリック統合） -->
                     <div class="admin-section">
-                        <h2>アクセス解析</h2>
-                        <div class="analytics-controls">
+                        <h2>アクセス推移</h2>
+                        <div class="analytics-controls" style="margin-bottom: 20px;">
                             <div class="form-group" style="display: inline-block; margin-right: 15px;">
                                 <label for="analytics-period">期間:</label>
                                 <select id="analytics-period" onchange="loadAnalytics()">
@@ -293,23 +299,15 @@
                             <div class="form-group" style="display: inline-block;">
                                 <label for="analytics-days">日数:</label>
                                 <select id="analytics-days" onchange="loadAnalytics()">
-                                    <option value="7">過去7日</option>
-                                    <option value="30" selected>過去30日</option>
+                                    <option value="7" selected>過去7日</option>
+                                    <option value="30">過去30日</option>
                                     <option value="90">過去90日</option>
                                 </select>
                             </div>
                         </div>
-                    </div>
-
-                    <!-- 検索統計 -->
-                    <div class="admin-section">
-                        <h3>検索数推移</h3>
+                        <h4 style="margin: 20px 0 10px; color: var(--text-secondary);">検索数</h4>
                         <div id="search-stats-chart" class="analytics-chart"></div>
-                    </div>
-
-                    <!-- クリック統計 -->
-                    <div class="admin-section">
-                        <h3>クリック数推移</h3>
+                        <h4 style="margin: 30px 0 10px; color: var(--text-secondary);">クリック数</h4>
                         <div id="click-stats-chart" class="analytics-chart"></div>
                     </div>
 
@@ -1459,13 +1457,23 @@
             const sortedData = [...data].sort((a, b) => a.date.localeCompare(b.date));
             const maxCount = Math.max(...sortedData.map(d => d.count));
 
+            // 対数スケールで高さを計算（小さい値も見えるように）
+            const logScale = (value, max) => {
+                if (value <= 0) return 0;
+                if (max <= 0) return 0;
+                // log(1) = 0 なので +1 してから計算
+                const logValue = Math.log10(value + 1);
+                const logMax = Math.log10(max + 1);
+                return (logValue / logMax) * 100;
+            };
+
             container.innerHTML = `
                 <div class="chart-container">
                     ${sortedData.map(item => {
-                        const height = maxCount > 0 ? (item.count / maxCount * 100) : 0;
+                        const height = logScale(item.count, maxCount);
                         return `
                             <div class="chart-bar-wrapper">
-                                <div class="chart-bar" style="height: ${height}%;" title="${item.date}: ${item.count}">
+                                <div class="chart-bar" style="height: ${Math.max(height, item.count > 0 ? 15 : 0)}%;" title="${item.date}: ${item.count}">
                                     <span class="chart-bar-value">${item.count}</span>
                                 </div>
                                 <div class="chart-bar-label">${item.date.slice(-5)}</div>
@@ -1485,8 +1493,17 @@
 
             const maxCount = Math.max(...data.map(d => d[countKey]));
 
+            // 対数スケールで幅を計算
+            const logScale = (value, max) => {
+                if (value <= 0) return 0;
+                if (max <= 0) return 0;
+                const logValue = Math.log10(value + 1);
+                const logMax = Math.log10(max + 1);
+                return (logValue / logMax) * 100;
+            };
+
             container.innerHTML = data.map((item, index) => {
-                const percentage = maxCount > 0 ? (item[countKey] / maxCount * 100) : 0;
+                const percentage = Math.max(logScale(item[countKey], maxCount), item[countKey] > 0 ? 15 : 0);
                 return `
                     <div class="ranking-item">
                         <span class="ranking-rank">${index + 1}</span>
