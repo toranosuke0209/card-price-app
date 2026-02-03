@@ -1,212 +1,29 @@
+/**
+ * ホームページ用JavaScript
+ * ホーム画面のデータ表示のみを担当
+ */
 document.addEventListener('DOMContentLoaded', () => {
-    const keywordInput = document.getElementById('keyword');
-    const searchBtn = document.getElementById('search-btn');
-    const sortSelect = document.getElementById('sort-select');
-    const stockFilter = document.getElementById('stock-filter');
-    const loadingEl = document.getElementById('loading');
-    const errorEl = document.getElementById('error');
-    const resultsEl = document.getElementById('results');
-    const resultCountEl = document.getElementById('result-count');
-    const homeEl = document.getElementById('home');
-
-    let allProducts = [];
-    let favoriteCardIds = [];
-
-    // お気に入りIDを読み込み（ログイン時のみ）
-    loadFavoriteIds();
-
     // ホーム画面データを読み込み
     loadHomeData();
 
-    // お気に入りIDを読み込み
-    async function loadFavoriteIds() {
-        if (typeof Favorites !== 'undefined' && Auth.isLoggedIn()) {
-            favoriteCardIds = await Favorites.getIds();
-        }
-    }
-
-    // 検索実行
-    async function search() {
-        const keyword = keywordInput.value.trim();
-        if (!keyword) {
-            showError('検索キーワードを入力してください');
-            return;
-        }
-
-        // UI状態をリセット
-        searchBtn.disabled = true;
-        loadingEl.classList.remove('hidden');
-        errorEl.classList.add('hidden');
-        resultsEl.innerHTML = '';
-        resultCountEl.textContent = '';
-
-        // ホーム画面を非表示
-        if (homeEl) homeEl.classList.add('hidden');
-
-        try {
-            const response = await fetch(`/api/search?keyword=${encodeURIComponent(keyword)}`);
-
-            if (!response.ok) {
-                throw new Error('検索に失敗しました');
+    // フォーム送信時の空チェック
+    const searchForm = document.getElementById('search-form');
+    if (searchForm) {
+        searchForm.addEventListener('submit', (e) => {
+            const keyword = document.getElementById('keyword').value.trim();
+            if (!keyword) {
+                e.preventDefault();
+                alert('検索キーワードを入力してください');
             }
-
-            const data = await response.json();
-            allProducts = flattenResults(data.results);
-            renderProducts();
-            resultCountEl.textContent = `${data.total_count}件の商品が見つかりました`;
-
-        } catch (err) {
-            showError(err.message);
-        } finally {
-            searchBtn.disabled = false;
-            loadingEl.classList.add('hidden');
-        }
-    }
-
-    // 結果をフラット化
-    function flattenResults(results) {
-        const products = [];
-        for (const siteResult of results) {
-            for (const item of siteResult.items) {
-                products.push(item);
-            }
-        }
-        return products;
-    }
-
-    // 商品を表示
-    function renderProducts() {
-        // フィルター処理
-        const filteredProducts = filterProducts(allProducts, stockFilter ? stockFilter.value : 'all');
-        // ソート処理
-        const sortedProducts = sortProducts(filteredProducts, sortSelect.value);
-
-        if (sortedProducts.length === 0) {
-            resultsEl.innerHTML = '<p style="text-align:center;padding:20px;color:#666;">商品が見つかりませんでした</p>';
-            return;
-        }
-
-        resultsEl.innerHTML = sortedProducts.map(product => createProductCard(product)).join('');
-
-        // フィルター後の件数を表示
-        if (filteredProducts.length !== allProducts.length) {
-            resultCountEl.textContent = `${filteredProducts.length}件表示 / 全${allProducts.length}件`;
-        }
-    }
-
-    // フィルター処理
-    function filterProducts(products, filterType) {
-        switch (filterType) {
-            case 'in-stock':
-                return products.filter(p => p.stock > 0);
-            case 'out-of-stock':
-                return products.filter(p => p.stock === 0);
-            default:
-                return products;
-        }
-    }
-
-    // ソート処理
-    function sortProducts(products, sortType) {
-        const sorted = [...products];
-
-        switch (sortType) {
-            case 'price-asc':
-                sorted.sort((a, b) => a.price - b.price);
-                break;
-            case 'price-desc':
-                sorted.sort((a, b) => b.price - a.price);
-                break;
-            case 'site':
-                sorted.sort((a, b) => a.site.localeCompare(b.site));
-                break;
-        }
-
-        return sorted;
-    }
-
-    // 画像URLを取得（ホビステはプロキシ経由）
-    function getImageUrl(imageUrl) {
-        if (!imageUrl) return null;
-        // ホビステの画像はプロキシ経由で取得（ホットリンク対策回避）
-        if (imageUrl.includes('hobbystation-single.jp')) {
-            return `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
-        }
-        return imageUrl;
-    }
-
-    // 商品カードHTML生成
-    function createProductCard(product) {
-        const siteClass = getSiteClass(product.site);
-        const stockClass = product.stock > 0 ? 'in-stock' : 'out-of-stock';
-        const proxyImageUrl = getImageUrl(product.image_url);
-        const imageHtml = proxyImageUrl
-            ? `<img src="${escapeHtml(proxyImageUrl)}" alt="${escapeHtml(product.name)}" class="product-image" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="product-image-placeholder" style="display:none"></div>`
-            : '<div class="product-image-placeholder"></div>';
-
-        // リダイレクトAPI経由のURL（クリック計測用）
-        const redirectUrl = buildRedirectUrl(product.url, product.site, product.name);
-
-        // お気に入りボタン（ログイン時のみ、card_idがある場合のみ）
-        let favoriteBtn = '';
-        if (typeof Auth !== 'undefined' && Auth.isLoggedIn() && product.card_id) {
-            const isFav = favoriteCardIds.includes(product.card_id);
-            favoriteBtn = `
-                <button class="favorite-btn ${isFav ? 'active' : ''}"
-                        onclick="toggleFavorite(${product.card_id}, this)"
-                        title="${isFav ? 'お気に入りから削除' : 'お気に入りに追加'}">
-                    ${isFav ? '&#9733;' : '&#9734;'}
-                </button>
-            `;
-        }
-
-        return `
-            <div class="product-card">
-                ${imageHtml}
-                <span class="site-badge ${siteClass}">${escapeHtml(product.site)}</span>
-                <div class="product-name">
-                    <a href="${redirectUrl}" target="_blank" rel="noopener">
-                        ${escapeHtml(product.name)}
-                    </a>
-                </div>
-                <div class="product-price">${escapeHtml(product.price_text)}</div>
-                <span class="product-stock ${stockClass}">${escapeHtml(product.stock_text)}</span>
-                ${favoriteBtn}
-            </div>
-        `;
-    }
-
-    // リダイレクトURL生成（クリック計測用）
-    function buildRedirectUrl(url, site, cardName) {
-        const params = new URLSearchParams();
-        params.set('url', url);
-        if (site) params.set('site', site);
-        if (cardName) params.set('card', cardName);
-        return `/api/redirect?${params.toString()}`;
-    }
-
-    // サイト名からCSSクラスを取得
-    function getSiteClass(siteName) {
-        if (siteName.includes('カードラッシュ')) return 'cardrush';
-        if (siteName.includes('Tier')) return 'tierone';
-        if (siteName.includes('バトスキ')) return 'batosuki';
-        if (siteName.includes('フルアヘッド')) return 'fullahead';
-        if (siteName.includes('遊々亭')) return 'yuyutei';
-        if (siteName.includes('ホビーステーション')) return 'hobbystation';
-        return '';
+        });
     }
 
     // HTMLエスケープ
     function escapeHtml(text) {
+        if (!text) return '';
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
-    }
-
-    // エラー表示
-    function showError(message) {
-        errorEl.textContent = message;
-        errorEl.classList.remove('hidden');
     }
 
     // ホーム画面データ読み込み
@@ -237,42 +54,39 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }
 
-        // バッチ実行通知
-        renderBatchNotification(data.batch_logs);
-
         // 最近更新
         renderHomeList('recently-updated', data.recently_updated, (item) => `
-            <div class="home-item">
-                <span class="home-item-name" onclick="searchCard('${escapeHtml(item.name)}')">${escapeHtml(truncate(item.name, 25))}</span>
+            <a href="/search?q=${encodeURIComponent(item.name)}" class="home-item">
+                <span class="home-item-name">${escapeHtml(truncate(item.name, 25))}</span>
                 <span class="home-item-price">${escapeHtml(item.price_text)}</span>
                 <span class="home-item-shop">${escapeHtml(item.site)}</span>
-            </div>
+            </a>
         `);
 
         // 値上がり
         renderHomeList('price-up', data.price_up, (item) => `
-            <div class="home-item">
-                <span class="home-item-name" onclick="searchCard('${escapeHtml(item.card_name)}')">${escapeHtml(truncate(item.card_name, 20))}</span>
+            <a href="/search?q=${encodeURIComponent(item.card_name)}" class="home-item">
+                <span class="home-item-name">${escapeHtml(truncate(item.card_name, 20))}</span>
                 <span class="home-item-diff up">+${item.diff.toLocaleString()}円</span>
                 <span class="home-item-shop">${escapeHtml(item.shop_name)}</span>
-            </div>
+            </a>
         `);
 
         // 値下がり
         renderHomeList('price-down', data.price_down, (item) => `
-            <div class="home-item">
-                <span class="home-item-name" onclick="searchCard('${escapeHtml(item.card_name)}')">${escapeHtml(truncate(item.card_name, 20))}</span>
+            <a href="/search?q=${encodeURIComponent(item.card_name)}" class="home-item">
+                <span class="home-item-name">${escapeHtml(truncate(item.card_name, 20))}</span>
                 <span class="home-item-diff down">-${item.diff.toLocaleString()}円</span>
                 <span class="home-item-shop">${escapeHtml(item.shop_name)}</span>
-            </div>
+            </a>
         `);
 
         // 注目カード
         renderHomeList('hot-cards', data.hot_cards, (item) => `
-            <div class="home-item">
-                <span class="home-item-name" onclick="searchCard('${escapeHtml(item.card_name)}')">${escapeHtml(truncate(item.card_name, 25))}</span>
+            <a href="/search?q=${encodeURIComponent(item.card_name)}" class="home-item">
+                <span class="home-item-name">${escapeHtml(truncate(item.card_name, 25))}</span>
                 <span class="home-item-clicks">${item.click_count} clicks</span>
-            </div>
+            </a>
         `);
     }
 
@@ -291,18 +105,24 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="featured-keywords-label">人気のキーワード:</div>
             <div class="featured-keywords-list">
                 ${keywords.map(kw => `
-                    <button class="featured-keyword-tag" onclick="searchCard('${escapeHtml(kw.keyword)}')">
+                    <a href="/search?q=${encodeURIComponent(kw.keyword)}" class="featured-keyword-tag">
                         ${escapeHtml(kw.keyword)}
-                    </button>
+                    </a>
                 `).join('')}
             </div>
         `;
     }
 
-    // バッチ実行通知を描画
+    // バッチ実行通知を描画（管理者のみ）
     function renderBatchNotification(batchLogs) {
         const notificationEl = document.getElementById('batch-notification');
         if (!notificationEl) return;
+
+        // 管理者以外には表示しない
+        if (!Auth.isAdmin()) {
+            notificationEl.classList.add('hidden');
+            return;
+        }
 
         // 最新の成功ログを取得（24時間以内）
         if (!batchLogs || batchLogs.length === 0) {
@@ -310,12 +130,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // 24時間以内のログのみ表示
+        // 48時間以内のログのみ表示（巡回は1日1回のため）
         const now = new Date();
         const recentLogs = batchLogs.filter(log => {
             const logDate = new Date(log.finished_at);
             const diffHours = (now - logDate) / (1000 * 60 * 60);
-            return diffHours < 24 && log.status === 'success';
+            return diffHours < 48 && log.status === 'success';
         });
 
         if (recentLogs.length === 0) {
@@ -334,6 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const formatTime = (dateStr) => {
             const d = new Date(dateStr);
             return d.toLocaleString('ja-JP', {
+                timeZone: 'Asia/Tokyo',
                 month: 'numeric',
                 day: 'numeric',
                 hour: '2-digit',
@@ -380,68 +201,21 @@ document.addEventListener('DOMContentLoaded', () => {
         return str.length > maxLength ? str.substring(0, maxLength) + '...' : str;
     }
 
-    // 日付フォーマット
+    // 日付フォーマット（UTCをJSTに変換）
     function formatDate(dateStr) {
         if (!dateStr) return '';
-        const date = new Date(dateStr);
+        // UTCとして解釈するためにZを追加
+        let utcStr = dateStr;
+        if (!dateStr.endsWith('Z') && !dateStr.includes('+')) {
+            utcStr = dateStr.replace(' ', 'T') + 'Z';
+        }
+        const date = new Date(utcStr);
         return date.toLocaleString('ja-JP', {
+            timeZone: 'Asia/Tokyo',
             month: 'numeric',
             day: 'numeric',
             hour: '2-digit',
             minute: '2-digit'
-        });
-    }
-
-    // カード名で検索（グローバル関数）
-    window.searchCard = function(cardName) {
-        keywordInput.value = cardName;
-        search();
-    };
-
-    // お気に入り切り替え（グローバル関数）
-    window.toggleFavorite = async function(cardId, btnEl) {
-        if (typeof Favorites === 'undefined') return;
-
-        try {
-            const isFav = favoriteCardIds.includes(cardId);
-            if (isFav) {
-                await Favorites.remove(cardId);
-                favoriteCardIds = favoriteCardIds.filter(id => id !== cardId);
-                btnEl.classList.remove('active');
-                btnEl.innerHTML = '&#9734;';
-                btnEl.title = 'お気に入りに追加';
-            } else {
-                await Favorites.add(cardId);
-                favoriteCardIds.push(cardId);
-                btnEl.classList.add('active');
-                btnEl.innerHTML = '&#9733;';
-                btnEl.title = 'お気に入りから削除';
-            }
-        } catch (e) {
-            alert(e.message);
-        }
-    };
-
-    // イベントリスナー
-    searchBtn.addEventListener('click', search);
-
-    keywordInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            search();
-        }
-    });
-
-    sortSelect.addEventListener('change', () => {
-        if (allProducts.length > 0) {
-            renderProducts();
-        }
-    });
-
-    if (stockFilter) {
-        stockFilter.addEventListener('change', () => {
-            if (allProducts.length > 0) {
-                renderProducts();
-            }
         });
     }
 });

@@ -3,8 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="robots" content="noindex, nofollow">
     <title>管理画面 | BSPrice - バトスピ価格比較</title>
     <link rel="stylesheet" href="/static/style.css">
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2167017279500518"
+         crossorigin="anonymous"></script>
 </head>
 <body>
     <!-- ヘッダー -->
@@ -33,98 +42,353 @@
                 <h1 class="search-title" style="font-size: 1.5rem;">管理者ダッシュボード</h1>
             </div>
 
+            <!-- TODO リマインダー -->
+            <div class="admin-reminder">
+                <div class="reminder-icon">!</div>
+                <div class="reminder-content">
+                    <div class="reminder-title">TODO: 新弾追加プログラム作成</div>
+                    <div class="reminder-desc">
+                        <strong>2月14日</strong>に新弾が発売予定。<br>
+                        新弾のカードのみを追加するプログラムを作成すること。
+                    </div>
+                </div>
+            </div>
+
             <div id="admin-content" class="admin-content hidden">
-            <!-- 統計情報 -->
-            <div class="admin-section">
-                <h2>統計情報</h2>
-                <div class="admin-stats" id="admin-stats">
-                    <div class="stat-card">
-                        <div class="stat-value" id="stat-cards">-</div>
-                        <div class="stat-label">登録カード</div>
+                <!-- タブナビゲーション -->
+                <div class="admin-tabs">
+                    <button class="admin-tab active" data-tab="dashboard">ダッシュボード</button>
+                    <button class="admin-tab" data-tab="cards">カード管理</button>
+                    <button class="admin-tab" data-tab="content">コンテンツ管理</button>
+                    <button class="admin-tab" data-tab="x-posts">X投稿</button>
+                    <button class="admin-tab" data-tab="analytics">アクセス解析</button>
+                    <button class="admin-tab" data-tab="users">ユーザー管理</button>
+                    <button class="admin-tab" data-tab="system">システム管理</button>
+                </div>
+
+                <!-- ダッシュボードタブ -->
+                <div class="admin-tab-content active" id="tab-dashboard">
+                    <!-- 統計情報 -->
+                    <div class="admin-section">
+                        <h2>統計情報</h2>
+                        <div class="admin-stats" id="admin-stats">
+                            <div class="stat-card">
+                                <div class="stat-value" id="stat-cards">-</div>
+                                <div class="stat-label">登録カード</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" id="stat-prices">-</div>
+                                <div class="stat-label">価格データ</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" id="stat-users">-</div>
+                                <div class="stat-label">ユーザー</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" id="stat-favorites">-</div>
+                                <div class="stat-label">お気に入り</div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="stat-prices">-</div>
-                        <div class="stat-label">価格データ</div>
+
+                    <!-- 巡回状況 -->
+                    <div class="admin-section">
+                        <h2>巡回状況</h2>
+                        <p class="section-desc">各ショップの最新巡回状況です。</p>
+                        <div id="batch-status" class="batch-status-list"></div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="stat-users">-</div>
-                        <div class="stat-label">ユーザー</div>
+
+                    <!-- 人気カード更新 -->
+                    <div class="admin-section">
+                        <h2>人気カード管理</h2>
+                        <p class="section-desc">検索数とクリック数に基づいて人気カードフラグを自動更新します。</p>
+                        <button class="admin-btn" onclick="handleUpdatePopular()">人気カードを更新</button>
+                        <div class="form-success" id="popular-success"></div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="stat-favorites">-</div>
-                        <div class="stat-label">お気に入り</div>
+                </div>
+
+                <!-- カード管理タブ -->
+                <div class="admin-tab-content" id="tab-cards">
+                    <!-- カード登録 -->
+                    <div class="admin-section">
+                        <h2>カード登録</h2>
+                        <form id="card-form" class="admin-form" onsubmit="handleAddCard(event)">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="card-name">カード名（必須）</label>
+                                    <input type="text" id="card-name" required minlength="2" placeholder="例: ジークフリード">
+                                </div>
+                                <div class="form-group">
+                                    <label for="card-no">カード番号（任意）</label>
+                                    <input type="text" id="card-no" placeholder="例: BT01-001">
+                                </div>
+                            </div>
+                            <div class="form-error" id="card-error"></div>
+                            <div class="form-success" id="card-success"></div>
+                            <button type="submit" class="admin-btn">カードを登録</button>
+                        </form>
+                    </div>
+
+                    <!-- カード一覧 -->
+                    <div class="admin-section">
+                        <h2>登録カード一覧</h2>
+                        <p class="section-desc">登録されているカードの管理と価格取得ができます。</p>
+                        <div class="form-row" style="margin-bottom: 15px;">
+                            <div class="form-group" style="flex: 1;">
+                                <input type="text" id="card-search" placeholder="カード名で検索..." onkeyup="handleCardSearch(event)">
+                            </div>
+                            <div class="form-group" style="flex: 0;">
+                                <button class="admin-btn" onclick="loadCards()">検索</button>
+                            </div>
+                        </div>
+                        <div id="card-list" class="card-list"></div>
+                        <div id="card-pagination" class="pagination"></div>
+                    </div>
+
+                    <!-- カード統合 -->
+                    <div class="admin-section">
+                        <h2>カード統合（名寄せ）</h2>
+                        <p class="section-desc">
+                            異なるショップで別名になっているカードを手動でグループ化します。<br>
+                            同じグループのカードは詳細ページで価格が統合表示されます。
+                        </p>
+
+                        <!-- グループ作成 -->
+                        <div class="card-group-create">
+                            <h3>新規グループ作成</h3>
+                            <div class="form-row">
+                                <div class="form-group" style="flex: 2;">
+                                    <label>カード検索</label>
+                                    <input type="text" id="group-card-search" placeholder="統合したいカード名を検索..." onkeyup="handleGroupCardSearch(event)">
+                                </div>
+                                <div class="form-group" style="flex: 1;">
+                                    <label>グループ名</label>
+                                    <input type="text" id="group-name" placeholder="例: ジークフリード">
+                                </div>
+                            </div>
+
+                            <!-- 検索結果 -->
+                            <div id="group-search-results" class="group-search-results"></div>
+
+                            <!-- 選択済みカード -->
+                            <div id="group-selected-cards" class="group-selected-cards">
+                                <h4>統合するカード（<span id="selected-count">0</span>件選択中）</h4>
+                                <div id="selected-cards-list"></div>
+                            </div>
+
+                            <button class="admin-btn" onclick="handleCreateGroup()" id="create-group-btn" disabled>グループを作成</button>
+                            <div class="form-error" id="group-error"></div>
+                            <div class="form-success" id="group-success"></div>
+                        </div>
+
+                        <!-- 既存グループ一覧 -->
+                        <div class="card-group-list">
+                            <h3>既存グループ一覧</h3>
+                            <button class="admin-btn admin-btn-secondary" onclick="loadCardGroups()">更新</button>
+                            <div id="card-groups-list"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- コンテンツ管理タブ -->
+                <div class="admin-tab-content" id="tab-content">
+                    <!-- 人気キーワード管理 -->
+                    <div class="admin-section">
+                        <h2>人気キーワード管理</h2>
+                        <p class="section-desc">トップページに表示される検索キーワードを管理します。価格は1日2回自動更新されます。</p>
+                        <form id="keyword-form" class="admin-form" onsubmit="handleAddKeyword(event)">
+                            <div class="form-row">
+                                <div class="form-group" style="flex: 1;">
+                                    <label for="new-keyword">キーワード追加</label>
+                                    <input type="text" id="new-keyword" required placeholder="例: ジークフリード">
+                                </div>
+                                <div class="form-group" style="flex: 0; padding-top: 24px;">
+                                    <button type="submit" class="admin-btn">追加</button>
+                                </div>
+                            </div>
+                            <div class="form-error" id="keyword-error"></div>
+                        </form>
+                        <div style="margin: 15px 0;">
+                            <button class="admin-btn" onclick="updateAllKeywordPrices()" id="update-all-btn">全キーワードの価格を更新</button>
+                            <span id="update-all-status" style="margin-left: 10px; color: #666;"></span>
+                        </div>
+                        <div class="keyword-list" id="keyword-list"></div>
+                    </div>
+
+                    <!-- Amazon商品管理 -->
+                    <div class="admin-section">
+                        <h2>Amazon商品管理</h2>
+                        <p class="section-desc">検索結果に表示するAmazon商品を管理します。</p>
+                        <form id="amazon-form" class="admin-form" onsubmit="handleAddAmazonProduct(event)">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="amazon-url">Amazon URL</label>
+                                    <input type="url" id="amazon-url" required placeholder="https://www.amazon.co.jp/dp/...">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="amazon-name">商品名</label>
+                                    <input type="text" id="amazon-name" required placeholder="商品名を入力">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="amazon-price">価格（税込）</label>
+                                    <input type="number" id="amazon-price" required placeholder="5390">
+                                </div>
+                                <div class="form-group">
+                                    <label for="amazon-image">画像URL</label>
+                                    <input type="url" id="amazon-image" required placeholder="https://m.media-amazon.com/...">
+                                </div>
+                            </div>
+                            <div class="form-error" id="amazon-error"></div>
+                            <div class="form-success" id="amazon-success"></div>
+                            <button type="submit" class="admin-btn">商品を追加</button>
+                        </form>
+                        <div class="amazon-product-list" id="amazon-product-list"></div>
+                    </div>
+
+                    <!-- 楽天商品管理 -->
+                    <div class="admin-section">
+                        <h2>楽天商品管理</h2>
+                        <p class="section-desc">検索結果に表示する楽天商品を管理します。</p>
+                        <form id="rakuten-form" class="admin-form" onsubmit="handleAddRakutenProduct(event)">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="rakuten-url">楽天アフィリエイトURL</label>
+                                    <input type="url" id="rakuten-url" required placeholder="https://hb.afl.rakuten.co.jp/...">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="rakuten-name">商品名</label>
+                                    <input type="text" id="rakuten-name" required placeholder="商品名を入力">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="rakuten-price">価格（税込）</label>
+                                    <input type="number" id="rakuten-price" required placeholder="5040">
+                                </div>
+                                <div class="form-group">
+                                    <label for="rakuten-image">画像URL</label>
+                                    <input type="url" id="rakuten-image" required placeholder="https://...">
+                                </div>
+                            </div>
+                            <div class="form-error" id="rakuten-error"></div>
+                            <div class="form-success" id="rakuten-success"></div>
+                            <button type="submit" class="admin-btn">商品を追加</button>
+                        </form>
+                        <div class="rakuten-product-list" id="rakuten-product-list"></div>
+                    </div>
+                </div>
+
+                <!-- X投稿タブ -->
+                <div class="admin-tab-content" id="tab-x-posts">
+                    <div class="admin-section">
+                        <h2>X投稿キュー</h2>
+                        <p class="section-desc">
+                            価格変動時に自動生成された投稿文です。<br>
+                            「Xで投稿」ボタンをクリックすると、Xの投稿画面が開きます。
+                        </p>
+                        <div class="x-posts-controls" style="margin-bottom: 15px;">
+                            <label>
+                                <input type="checkbox" id="x-posts-pending-only" onchange="loadXPosts()">
+                                未投稿のみ表示
+                            </label>
+                            <button class="admin-btn admin-btn-small" onclick="loadXPosts()" style="margin-left: 15px;">更新</button>
+                        </div>
+                        <div id="x-posts-list" class="x-posts-list"></div>
+                    </div>
+                </div>
+
+                <!-- アクセス解析タブ -->
+                <div class="admin-tab-content" id="tab-analytics">
+                    <!-- アクセス推移（検索・クリック統合） -->
+                    <div class="admin-section">
+                        <h2>アクセス推移</h2>
+                        <div class="analytics-controls" style="margin-bottom: 20px;">
+                            <div class="form-group" style="display: inline-block; margin-right: 15px;">
+                                <label for="analytics-period">期間:</label>
+                                <select id="analytics-period" onchange="loadAnalytics()">
+                                    <option value="daily">日別</option>
+                                    <option value="weekly">週別</option>
+                                    <option value="monthly">月別</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="display: inline-block;">
+                                <label for="analytics-days">日数:</label>
+                                <select id="analytics-days" onchange="loadAnalytics()">
+                                    <option value="7" selected>過去7日</option>
+                                    <option value="30">過去30日</option>
+                                    <option value="90">過去90日</option>
+                                </select>
+                            </div>
+                        </div>
+                        <h4 style="margin: 20px 0 10px; color: var(--text-secondary);">検索数</h4>
+                        <div id="search-stats-chart" class="analytics-chart"></div>
+                        <h4 style="margin: 30px 0 10px; color: var(--text-secondary);">クリック数</h4>
+                        <div id="click-stats-chart" class="analytics-chart"></div>
+                    </div>
+
+                    <!-- 人気キーワードランキング -->
+                    <div class="admin-section">
+                        <h3>人気検索キーワード TOP20</h3>
+                        <div id="keyword-ranking" class="ranking-list"></div>
+                    </div>
+
+                    <!-- ショップ別クリック数 -->
+                    <div class="admin-section">
+                        <h3>ショップ別クリック数</h3>
+                        <div id="shop-ranking" class="ranking-list"></div>
+                    </div>
+
+                    <!-- 人気カードランキング -->
+                    <div class="admin-section">
+                        <h3>人気カードランキング TOP20</h3>
+                        <div id="card-ranking" class="ranking-list"></div>
+                    </div>
+                </div>
+
+                <!-- ユーザー管理タブ -->
+                <div class="admin-tab-content" id="tab-users">
+                    <div class="admin-section">
+                        <h2>ユーザー管理</h2>
+                        <div class="form-row" style="margin-bottom: 15px;">
+                            <div class="form-group" style="flex: 1;">
+                                <input type="text" id="user-search" placeholder="ユーザー名またはメールで検索..." onkeyup="handleUserSearch(event)">
+                            </div>
+                            <div class="form-group" style="flex: 0;">
+                                <button class="admin-btn" onclick="loadUsers()">検索</button>
+                            </div>
+                        </div>
+                        <div id="user-list" class="user-list"></div>
+                        <div id="user-pagination" class="pagination"></div>
+                    </div>
+                </div>
+
+                <!-- システム管理タブ -->
+                <div class="admin-tab-content" id="tab-system">
+                    <!-- 招待コード管理 -->
+                    <div class="admin-section">
+                        <h2>管理者招待コード</h2>
+                        <p class="section-desc">新しい管理者を招待するためのコードを生成します。</p>
+                        <button class="admin-btn" onclick="handleGenerateInvite()">新しい招待コードを生成</button>
+                        <div class="invite-list" id="invite-list"></div>
                     </div>
                 </div>
             </div>
 
-            <!-- カード登録 -->
-            <div class="admin-section">
-                <h2>カード登録</h2>
-                <form id="card-form" class="admin-form" onsubmit="handleAddCard(event)">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="card-name">カード名（必須）</label>
-                            <input type="text" id="card-name" required minlength="2" placeholder="例: ジークフリード">
-                        </div>
-                        <div class="form-group">
-                            <label for="card-no">カード番号（任意）</label>
-                            <input type="text" id="card-no" placeholder="例: BT01-001">
-                        </div>
-                    </div>
-                    <div class="form-error" id="card-error"></div>
-                    <div class="form-success" id="card-success"></div>
-                    <button type="submit" class="admin-btn">カードを登録</button>
-                </form>
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>読み込み中...</p>
             </div>
 
-            <!-- 人気キーワード管理 -->
-            <div class="admin-section">
-                <h2>人気キーワード管理</h2>
-                <p class="section-desc">トップページに表示される検索キーワードを管理します。価格は1日2回自動更新されます。</p>
-                <form id="keyword-form" class="admin-form" onsubmit="handleAddKeyword(event)">
-                    <div class="form-row">
-                        <div class="form-group" style="flex: 1;">
-                            <label for="new-keyword">キーワード追加</label>
-                            <input type="text" id="new-keyword" required placeholder="例: ジークフリード">
-                        </div>
-                        <div class="form-group" style="flex: 0; padding-top: 24px;">
-                            <button type="submit" class="admin-btn">追加</button>
-                        </div>
-                    </div>
-                    <div class="form-error" id="keyword-error"></div>
-                </form>
-                <div style="margin: 15px 0;">
-                    <button class="admin-btn" onclick="updateAllKeywordPrices()" id="update-all-btn">全キーワードの価格を更新</button>
-                    <span id="update-all-status" style="margin-left: 10px; color: #666;"></span>
-                </div>
-                <div class="keyword-list" id="keyword-list"></div>
+            <div id="not-admin" class="not-admin hidden">
+                <p>管理者権限が必要です。</p>
+                <a href="/" class="back-link">ホームに戻る</a>
             </div>
-
-            <!-- 人気カード更新 -->
-            <div class="admin-section">
-                <h2>人気カード管理</h2>
-                <p class="section-desc">検索数とクリック数に基づいて人気カードフラグを自動更新します。</p>
-                <button class="admin-btn" onclick="handleUpdatePopular()">人気カードを更新</button>
-                <div class="form-success" id="popular-success"></div>
-            </div>
-
-            <!-- 招待コード管理 -->
-            <div class="admin-section">
-                <h2>管理者招待コード</h2>
-                <button class="admin-btn" onclick="handleGenerateInvite()">新しい招待コードを生成</button>
-                <div class="invite-list" id="invite-list"></div>
-            </div>
-        </div>
-
-        <div id="loading" class="loading">
-            <div class="spinner"></div>
-            <p>読み込み中...</p>
-        </div>
-
-        <div id="not-admin" class="not-admin hidden">
-            <p>管理者権限が必要です。</p>
-            <a href="/" class="back-link">ホームに戻る</a>
-        </div>
         </div>
     </main>
 
@@ -151,6 +415,7 @@
                     <h4>その他</h4>
                     <a href="/login">ログイン</a>
                     <a href="/about">このサイトについて</a>
+                    <a href="/privacy">プライバシーポリシー</a>
                 </div>
             </div>
             <div class="footer-bottom">
@@ -162,6 +427,9 @@
 
     <script src="/static/auth.js"></script>
     <script>
+        // 現在のユーザー情報
+        let currentAdmin = null;
+
         // 初期化
         document.addEventListener('DOMContentLoaded', async () => {
             const loadingEl = document.getElementById('loading');
@@ -182,15 +450,47 @@
                 return;
             }
 
+            currentAdmin = user;
+
             // 管理者なのでコンテンツを表示
             loadingEl.classList.add('hidden');
             contentEl.classList.remove('hidden');
 
+            // タブ切り替えイベント設定
+            setupTabs();
+
             // データ読み込み
             loadStats();
+            loadBatchStatus();
             loadInvites();
             loadKeywords();
+            loadCards();
+            loadAmazonProducts();
+            loadRakutenProducts();
+            loadAnalytics();
+            loadCardGroups();
+            updateSelectedCardsDisplay();
+            loadUsers();
         });
+
+        // タブ切り替え設定
+        function setupTabs() {
+            const tabs = document.querySelectorAll('.admin-tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    // タブボタンのアクティブ状態を切り替え
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+
+                    // タブコンテンツの表示を切り替え
+                    const tabId = tab.dataset.tab;
+                    document.querySelectorAll('.admin-tab-content').forEach(content => {
+                        content.classList.remove('active');
+                    });
+                    document.getElementById(`tab-${tabId}`).classList.add('active');
+                });
+            });
+        }
 
         // 統計情報を読み込み
         async function loadStats() {
@@ -207,6 +507,80 @@
             } catch (e) {
                 console.error('Failed to load stats:', e);
             }
+        }
+
+        // 巡回状況を読み込み
+        async function loadBatchStatus() {
+            try {
+                const response = await fetch('/api/home');
+                if (!response.ok) return;
+                const data = await response.json();
+                renderBatchStatus(data.batch_logs);
+            } catch (e) {
+                console.error('Failed to load batch status:', e);
+            }
+        }
+
+        // 巡回状況を描画
+        function renderBatchStatus(batchLogs) {
+            const container = document.getElementById('batch-status');
+            if (!container) return;
+
+            if (!batchLogs || batchLogs.length === 0) {
+                container.innerHTML = '<p class="no-data">巡回データがありません</p>';
+                return;
+            }
+
+            // 48時間以内のログのみ
+            const now = new Date();
+            const recentLogs = batchLogs.filter(log => {
+                const logDate = new Date(log.finished_at);
+                const diffHours = (now - logDate) / (1000 * 60 * 60);
+                return diffHours < 48;
+            });
+
+            if (recentLogs.length === 0) {
+                container.innerHTML = '<p class="no-data">48時間以内の巡回データがありません</p>';
+                return;
+            }
+
+            // 各ショップの最新ログを取得
+            const shopLogs = {};
+            recentLogs.forEach(log => {
+                if (!shopLogs[log.shop_name]) {
+                    shopLogs[log.shop_name] = log;
+                }
+            });
+
+            container.innerHTML = Object.values(shopLogs).map(log => `
+                <div class="batch-status-item ${log.status === 'success' ? 'success' : 'error'}">
+                    <div class="batch-shop-name">${escapeHtml(log.shop_name)}</div>
+                    <div class="batch-shop-stats">
+                        <span class="batch-stat">${log.cards_total.toLocaleString()}件取得</span>
+                        <span class="batch-stat">${log.cards_new.toLocaleString()}件新規</span>
+                        <span class="batch-time">${formatDateJST(log.finished_at)}</span>
+                    </div>
+                    <div class="batch-status-badge ${log.status}">${log.status === 'success' ? '成功' : 'エラー'}</div>
+                </div>
+            `).join('');
+        }
+
+        // JST日付フォーマット（UTCとして解釈してJSTに変換）
+        function formatDateJST(dateStr) {
+            if (!dateStr) return '';
+            // UTCとして解釈するためにZを追加（既にある場合は追加しない）
+            let utcStr = dateStr;
+            if (!dateStr.endsWith('Z') && !dateStr.includes('+')) {
+                utcStr = dateStr.replace(' ', 'T') + 'Z';
+            }
+            const date = new Date(utcStr);
+            return date.toLocaleString('ja-JP', {
+                timeZone: 'Asia/Tokyo',
+                month: 'numeric',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
         }
 
         // 招待コード一覧を読み込み
@@ -271,8 +645,160 @@
                 document.getElementById('card-name').value = '';
                 document.getElementById('card-no').value = '';
                 loadStats();
+                loadCards();
             } catch (e) {
                 errorEl.textContent = e.message;
+            }
+        }
+
+        // =================================================================
+        // カード一覧管理
+        // =================================================================
+
+        let cardCurrentPage = 0;
+        const cardPageSize = 20;
+
+        async function loadCards(page = 0) {
+            cardCurrentPage = page;
+            const search = document.getElementById('card-search').value.trim();
+            const offset = page * cardPageSize;
+
+            try {
+                const params = new URLSearchParams({
+                    limit: cardPageSize,
+                    offset: offset
+                });
+                if (search) params.append('search', search);
+
+                const response = await Auth.authFetch(`/api/admin/cards?${params}`);
+                if (!response.ok) return;
+                const data = await response.json();
+                renderCards(data.cards, data.total);
+            } catch (e) {
+                console.error('Failed to load cards:', e);
+            }
+        }
+
+        function handleCardSearch(event) {
+            if (event.key === 'Enter') {
+                loadCards(0);
+            }
+        }
+
+        function renderCards(cards, total) {
+            const listEl = document.getElementById('card-list');
+            const paginationEl = document.getElementById('card-pagination');
+
+            if (!cards || cards.length === 0) {
+                listEl.innerHTML = '<p class="no-data">カードがありません</p>';
+                paginationEl.innerHTML = '';
+                return;
+            }
+
+            listEl.innerHTML = `
+                <div class="card-list-header">
+                    <span class="card-col-id">ID</span>
+                    <span class="card-col-name">カード名</span>
+                    <span class="card-col-no">番号</span>
+                    <span class="card-col-prices">価格数</span>
+                    <span class="card-col-updated">最終取得</span>
+                    <span class="card-col-actions">操作</span>
+                </div>
+                ${cards.map(card => `
+                    <div class="card-list-item" data-id="${card.id}">
+                        <span class="card-col-id">${card.id}</span>
+                        <span class="card-col-name">${escapeHtml(card.name)}</span>
+                        <span class="card-col-no">${card.card_no || '-'}</span>
+                        <span class="card-col-prices">${card.price_count || 0}</span>
+                        <span class="card-col-updated">${card.last_price_fetch_at ? formatDate(card.last_price_fetch_at) : '未取得'}</span>
+                        <span class="card-col-actions">
+                            <button class="card-btn fetch-btn" onclick="fetchCardPrices(${card.id}, '${escapeHtml(card.name)}')" title="価格を取得">価格取得</button>
+                            <button class="card-btn delete-btn" onclick="deleteCard(${card.id}, '${escapeHtml(card.name)}')" title="削除">×</button>
+                        </span>
+                    </div>
+                `).join('')}
+            `;
+
+            const totalPages = Math.ceil(total / cardPageSize);
+            if (totalPages <= 1) {
+                paginationEl.innerHTML = `<span class="page-info">${total}件</span>`;
+                return;
+            }
+
+            let paginationHtml = `<span class="page-info">${total}件中 ${cardCurrentPage * cardPageSize + 1}-${Math.min((cardCurrentPage + 1) * cardPageSize, total)}件</span>`;
+
+            if (cardCurrentPage > 0) {
+                paginationHtml += `<button class="page-btn" onclick="loadCards(${cardCurrentPage - 1})">前へ</button>`;
+            }
+
+            paginationHtml += `<span class="page-current">${cardCurrentPage + 1} / ${totalPages}</span>`;
+
+            if (cardCurrentPage < totalPages - 1) {
+                paginationHtml += `<button class="page-btn" onclick="loadCards(${cardCurrentPage + 1})">次へ</button>`;
+            }
+
+            paginationEl.innerHTML = paginationHtml;
+        }
+
+        async function fetchCardPrices(cardId, cardName) {
+            if (!confirm(`「${cardName}」の価格を各ショップから取得します。\n数十秒かかる場合があります。続行しますか？`)) return;
+
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '取得中...';
+
+            try {
+                const response = await Auth.authFetch(`/api/admin/cards/${cardId}/fetch-prices`, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    alert(data.detail || '価格取得に失敗しました');
+                    return;
+                }
+
+                let resultMsg = `「${cardName}」の価格取得完了\n\n`;
+                resultMsg += `取得: ${data.stats.total}件\n`;
+                resultMsg += `更新: ${data.stats.new}件\n\n`;
+                if (data.stats.shops) {
+                    resultMsg += `【ショップ別】\n`;
+                    for (const [shop, stat] of Object.entries(data.stats.shops)) {
+                        resultMsg += `${shop}: ${stat.found}件取得, ${stat.saved}件更新\n`;
+                    }
+                }
+                alert(resultMsg);
+
+                loadCards(cardCurrentPage);
+                loadStats();
+            } catch (e) {
+                alert(e.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+
+        async function deleteCard(cardId, cardName) {
+            if (!confirm(`「${cardName}」を削除しますか？\n関連する価格データも全て削除されます。`)) return;
+
+            try {
+                const response = await Auth.authFetch(`/api/admin/cards/${cardId}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    alert(data.detail || '削除に失敗しました');
+                    return;
+                }
+
+                alert(data.message);
+                loadCards(cardCurrentPage);
+                loadStats();
+            } catch (e) {
+                alert(e.message);
             }
         }
 
@@ -280,7 +806,6 @@
         // 人気キーワード管理
         // =================================================================
 
-        // キーワード一覧を読み込み
         async function loadKeywords() {
             try {
                 const response = await Auth.authFetch('/api/admin/featured-keywords');
@@ -292,7 +817,6 @@
             }
         }
 
-        // キーワード一覧を描画
         function renderKeywords(keywords) {
             const listEl = document.getElementById('keyword-list');
             if (!keywords || keywords.length === 0) {
@@ -317,7 +841,6 @@
             `).join('');
         }
 
-        // キーワード追加処理
         async function handleAddKeyword(event) {
             event.preventDefault();
             const errorEl = document.getElementById('keyword-error');
@@ -346,7 +869,6 @@
             }
         }
 
-        // キーワードの表示/非表示を切り替え
         async function toggleKeyword(id, currentActive) {
             try {
                 const response = await Auth.authFetch(`/api/admin/featured-keywords/${id}`, {
@@ -367,10 +889,8 @@
             }
         }
 
-        // キーワードを移動（並び替え）
         let currentKeywords = [];
         async function moveKeyword(id, direction) {
-            // 現在の一覧を取得
             const response = await Auth.authFetch('/api/admin/featured-keywords');
             if (!response.ok) return;
             const data = await response.json();
@@ -382,10 +902,8 @@
             const newIndex = index + direction;
             if (newIndex < 0 || newIndex >= currentKeywords.length) return;
 
-            // 配列内で入れ替え
             [currentKeywords[index], currentKeywords[newIndex]] = [currentKeywords[newIndex], currentKeywords[index]];
 
-            // 新しい順序でAPIに送信
             const newOrder = currentKeywords.map(k => k.id);
             try {
                 const reorderResponse = await Auth.authFetch('/api/admin/featured-keywords/reorder', {
@@ -406,7 +924,6 @@
             }
         }
 
-        // キーワードを削除
         async function deleteKeyword(id) {
             if (!confirm('このキーワードを削除しますか？')) return;
 
@@ -427,11 +944,9 @@
             }
         }
 
-        // 単一キーワードの価格を更新
         async function updateKeywordPrices(id, keyword) {
             if (!confirm(`「${keyword}」の価格を各ショップから取得します。\n数十秒かかる場合があります。続行しますか？`)) return;
 
-            // ボタンを無効化
             const btn = event.target;
             const originalText = btn.textContent;
             btn.disabled = true;
@@ -448,7 +963,6 @@
                     return;
                 }
 
-                // 結果を表示
                 let resultMsg = `「${keyword}」の価格更新完了\n\n`;
                 resultMsg += `取得: ${data.stats.total}件\n`;
                 resultMsg += `更新: ${data.stats.new}件\n\n`;
@@ -466,7 +980,6 @@
             }
         }
 
-        // 全キーワードの価格を更新
         async function updateAllKeywordPrices() {
             if (!confirm('全ての人気キーワードの価格を更新します。\n数分かかる場合があります。続行しますか？')) return;
 
@@ -500,7 +1013,687 @@
             }
         }
 
-        // 人気カード更新処理
+        // =================================================================
+        // Amazon商品管理
+        // =================================================================
+
+        async function loadAmazonProducts() {
+            try {
+                const response = await Auth.authFetch('/api/admin/amazon-products');
+                if (!response.ok) return;
+                const data = await response.json();
+                renderAmazonProducts(data.products);
+            } catch (e) {
+                console.error('Failed to load Amazon products:', e);
+            }
+        }
+
+        function renderAmazonProducts(products) {
+            const listEl = document.getElementById('amazon-product-list');
+            if (!products || products.length === 0) {
+                listEl.innerHTML = '<p class="no-data">商品がありません</p>';
+                return;
+            }
+
+            listEl.innerHTML = products.map((product, index) => `
+                <div class="amazon-item ${product.is_active ? '' : 'inactive'}" data-id="${product.id}">
+                    <a href="${escapeHtml(product.affiliate_url)}" target="_blank" rel="noopener"><img src="${escapeHtml(product.image_url)}" alt="${escapeHtml(product.name)}" class="amazon-item-img" onerror="this.style.display='none'"></a>
+                    <div class="amazon-item-info">
+                        <a href="${escapeHtml(product.affiliate_url)}" target="_blank" rel="noopener" style="color:#4fc3f7;text-decoration:none"><div class="amazon-item-name">${escapeHtml(product.name)}</div></a>
+                        <div class="amazon-item-price">${product.price_text}</div>
+                    </div>
+                    <div class="amazon-item-actions">
+                        <button class="keyword-btn" onclick="editAmazonProduct(${product.id})" style="background:#2196F3">編集</button>
+                        <button class="keyword-btn toggle-btn" onclick="toggleAmazonProduct(${product.id}, ${product.is_active})">
+                            ${product.is_active ? '表示中' : '非表示'}
+                        </button>
+                        <button class="keyword-btn move-btn" onclick="moveAmazonProduct(${product.id}, -1)" ${index === 0 ? 'disabled' : ''}>↑</button>
+                        <button class="keyword-btn move-btn" onclick="moveAmazonProduct(${product.id}, 1)" ${index === products.length - 1 ? 'disabled' : ''}>↓</button>
+                        <button class="keyword-btn delete-btn" onclick="deleteAmazonProduct(${product.id})">×</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function editAmazonProduct(productId) {
+            const item = document.querySelector(`.amazon-item[data-id="${productId}"]`);
+            if (!item) return;
+
+            const nameEl = item.querySelector('.amazon-item-name');
+            const priceEl = item.querySelector('.amazon-item-price');
+            const imgEl = item.querySelector('.amazon-item-img');
+
+            const currentName = nameEl ? nameEl.textContent : '';
+            const currentPrice = priceEl ? priceEl.textContent.replace(/[^0-9]/g, '') : '';
+            const currentImage = imgEl ? imgEl.src : '';
+
+            const newName = prompt('商品名:', currentName);
+            if (newName === null) return;
+
+            const newPrice = prompt('価格:', currentPrice);
+            if (newPrice === null) return;
+
+            const newImageUrl = prompt('画像URL:', currentImage);
+            if (newImageUrl === null) return;
+
+            try {
+                const response = await Auth.authFetch(`/api/admin/amazon-products/${productId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: newName || undefined,
+                        price: newPrice ? parseInt(newPrice) : undefined,
+                        image_url: newImageUrl || undefined
+                    })
+                });
+                if (response.ok) {
+                    alert('更新しました');
+                    loadAmazonProducts();
+                } else {
+                    const err = await response.json();
+                    alert('エラー: ' + (err.detail || '更新失敗'));
+                }
+            } catch (e) {
+                alert('エラー: ' + e.message);
+            }
+        }
+
+        async function handleAddAmazonProduct(event) {
+            event.preventDefault();
+            const errorEl = document.getElementById('amazon-error');
+            const successEl = document.getElementById('amazon-success');
+            errorEl.textContent = '';
+            successEl.textContent = '';
+
+            const url = document.getElementById('amazon-url').value;
+            const name = document.getElementById('amazon-name').value;
+            const price = parseInt(document.getElementById('amazon-price').value);
+            const imageUrl = document.getElementById('amazon-image').value;
+
+            try {
+                const response = await Auth.authFetch('/api/admin/amazon-products', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, name, price, image_url: imageUrl })
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    errorEl.textContent = data.detail || '追加に失敗しました';
+                    return;
+                }
+
+                successEl.textContent = `「${name}」を追加しました`;
+                document.getElementById('amazon-url').value = '';
+                document.getElementById('amazon-name').value = '';
+                document.getElementById('amazon-price').value = '';
+                document.getElementById('amazon-image').value = '';
+                loadAmazonProducts();
+            } catch (e) {
+                errorEl.textContent = e.message;
+            }
+        }
+
+        async function toggleAmazonProduct(id, currentActive) {
+            try {
+                const response = await Auth.authFetch(`/api/admin/amazon-products/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_active: currentActive ? 0 : 1 })
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    alert(data.detail || '更新に失敗しました');
+                    return;
+                }
+
+                loadAmazonProducts();
+            } catch (e) {
+                alert(e.message);
+            }
+        }
+
+        let currentAmazonProducts = [];
+        async function moveAmazonProduct(id, direction) {
+            const response = await Auth.authFetch('/api/admin/amazon-products');
+            if (!response.ok) return;
+            const data = await response.json();
+            currentAmazonProducts = data.products;
+
+            const index = currentAmazonProducts.findIndex(p => p.id === id);
+            if (index === -1) return;
+
+            const newIndex = index + direction;
+            if (newIndex < 0 || newIndex >= currentAmazonProducts.length) return;
+
+            [currentAmazonProducts[index], currentAmazonProducts[newIndex]] = [currentAmazonProducts[newIndex], currentAmazonProducts[index]];
+
+            const newOrder = currentAmazonProducts.map(p => p.id);
+            try {
+                const reorderResponse = await Auth.authFetch('/api/admin/amazon-products/reorder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ product_ids: newOrder })
+                });
+
+                if (!reorderResponse.ok) {
+                    const errData = await reorderResponse.json();
+                    alert(errData.detail || '並び替えに失敗しました');
+                    return;
+                }
+
+                loadAmazonProducts();
+            } catch (e) {
+                alert(e.message);
+            }
+        }
+
+        async function deleteAmazonProduct(id) {
+            if (!confirm('この商品を削除しますか？')) return;
+
+            try {
+                const response = await Auth.authFetch(`/api/admin/amazon-products/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    alert(data.detail || '削除に失敗しました');
+                    return;
+                }
+
+                loadAmazonProducts();
+            } catch (e) {
+                alert(e.message);
+            }
+        }
+
+        // =================================================================
+        // 楽天商品管理
+        // =================================================================
+
+        async function loadRakutenProducts() {
+            try {
+                const response = await Auth.authFetch('/api/admin/rakuten-products');
+                if (!response.ok) return;
+                const data = await response.json();
+                renderRakutenProducts(data.products);
+            } catch (e) {
+                console.error('Failed to load Rakuten products:', e);
+            }
+        }
+
+        function renderRakutenProducts(products) {
+            const listEl = document.getElementById('rakuten-product-list');
+            if (!products || products.length === 0) {
+                listEl.innerHTML = '<p class="no-data">商品がありません</p>';
+                return;
+            }
+
+            listEl.innerHTML = products.map((product, index) => `
+                <div class="amazon-item ${product.is_active ? '' : 'inactive'}" data-id="${product.id}">
+                    <a href="${escapeHtml(product.affiliate_url)}" target="_blank" rel="noopener"><img src="${escapeHtml(product.image_url)}" alt="${escapeHtml(product.name)}" class="amazon-item-img" onerror="this.style.display='none'"></a>
+                    <div class="amazon-item-info">
+                        <a href="${escapeHtml(product.affiliate_url)}" target="_blank" rel="noopener" style="color:#bf0000;text-decoration:none"><div class="amazon-item-name">${escapeHtml(product.name)}</div></a>
+                        <div class="amazon-item-price">${product.price_text}</div>
+                    </div>
+                    <div class="amazon-item-actions">
+                        <button class="keyword-btn" onclick="editRakutenProduct(${product.id})" style="background:#2196F3">編集</button>
+                        <button class="keyword-btn toggle-btn" onclick="toggleRakutenProduct(${product.id}, ${product.is_active})">
+                            ${product.is_active ? '表示中' : '非表示'}
+                        </button>
+                        <button class="keyword-btn move-btn" onclick="moveRakutenProduct(${product.id}, -1)" ${index === 0 ? 'disabled' : ''}>↑</button>
+                        <button class="keyword-btn move-btn" onclick="moveRakutenProduct(${product.id}, 1)" ${index === products.length - 1 ? 'disabled' : ''}>↓</button>
+                        <button class="keyword-btn delete-btn" onclick="deleteRakutenProduct(${product.id})">×</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function editRakutenProduct(productId) {
+            const item = document.querySelector(`.amazon-item[data-id="${productId}"]`);
+            if (!item) return;
+
+            const nameEl = item.querySelector('.amazon-item-name');
+            const priceEl = item.querySelector('.amazon-item-price');
+            const imgEl = item.querySelector('.amazon-item-img');
+
+            const currentName = nameEl ? nameEl.textContent : '';
+            const currentPrice = priceEl ? priceEl.textContent.replace(/[^0-9]/g, '') : '';
+            const currentImage = imgEl ? imgEl.src : '';
+
+            const newName = prompt('商品名:', currentName);
+            if (newName === null) return;
+
+            const newPrice = prompt('価格:', currentPrice);
+            if (newPrice === null) return;
+
+            const newImageUrl = prompt('画像URL:', currentImage);
+            if (newImageUrl === null) return;
+
+            try {
+                const response = await Auth.authFetch(`/api/admin/rakuten-products/${productId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: newName || undefined,
+                        price: newPrice ? parseInt(newPrice) : undefined,
+                        image_url: newImageUrl || undefined
+                    })
+                });
+                if (response.ok) {
+                    alert('更新しました');
+                    loadRakutenProducts();
+                } else {
+                    const err = await response.json();
+                    alert('エラー: ' + (err.detail || '更新失敗'));
+                }
+            } catch (e) {
+                alert('エラー: ' + e.message);
+            }
+        }
+
+        async function handleAddRakutenProduct(event) {
+            event.preventDefault();
+            const errorEl = document.getElementById('rakuten-error');
+            const successEl = document.getElementById('rakuten-success');
+            errorEl.textContent = '';
+            successEl.textContent = '';
+
+            const affiliateUrl = document.getElementById('rakuten-url').value;
+            const name = document.getElementById('rakuten-name').value;
+            const price = parseInt(document.getElementById('rakuten-price').value);
+            const imageUrl = document.getElementById('rakuten-image').value;
+
+            try {
+                const response = await Auth.authFetch('/api/admin/rakuten-products', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, price, image_url: imageUrl, affiliate_url: affiliateUrl })
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    errorEl.textContent = data.detail || '追加に失敗しました';
+                    return;
+                }
+
+                successEl.textContent = `「${name}」を追加しました`;
+                document.getElementById('rakuten-url').value = '';
+                document.getElementById('rakuten-name').value = '';
+                document.getElementById('rakuten-price').value = '';
+                document.getElementById('rakuten-image').value = '';
+                loadRakutenProducts();
+            } catch (e) {
+                errorEl.textContent = e.message;
+            }
+        }
+
+        async function toggleRakutenProduct(id, currentActive) {
+            try {
+                const response = await Auth.authFetch(`/api/admin/rakuten-products/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_active: currentActive ? 0 : 1 })
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    alert(data.detail || '更新に失敗しました');
+                    return;
+                }
+
+                loadRakutenProducts();
+            } catch (e) {
+                alert(e.message);
+            }
+        }
+
+        let rakutenProducts = [];
+        async function moveRakutenProduct(id, direction) {
+            const response = await Auth.authFetch('/api/admin/rakuten-products');
+            if (!response.ok) return;
+            const data = await response.json();
+            rakutenProducts = data.products;
+
+            const currentIndex = rakutenProducts.findIndex(p => p.id === id);
+            const newIndex = currentIndex + direction;
+
+            if (newIndex < 0 || newIndex >= rakutenProducts.length) return;
+
+            [rakutenProducts[currentIndex], rakutenProducts[newIndex]] =
+            [rakutenProducts[newIndex], rakutenProducts[currentIndex]];
+
+            const productIds = rakutenProducts.map(p => p.id);
+            await Auth.authFetch('/api/admin/rakuten-products/reorder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ product_ids: productIds })
+            });
+
+            loadRakutenProducts();
+        }
+
+        async function deleteRakutenProduct(id) {
+            if (!confirm('この商品を削除しますか？')) return;
+
+            try {
+                const response = await Auth.authFetch(`/api/admin/rakuten-products/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    alert(data.detail || '削除に失敗しました');
+                    return;
+                }
+
+                loadRakutenProducts();
+            } catch (e) {
+                alert(e.message);
+            }
+        }
+
+        // =================================================================
+        // アクセス解析
+        // =================================================================
+
+        async function loadAnalytics() {
+            const period = document.getElementById('analytics-period').value;
+            const days = parseInt(document.getElementById('analytics-days').value);
+
+            await Promise.all([
+                loadSearchStats(period, days),
+                loadClickStats(period, days),
+                loadKeywordRanking(days),
+                loadShopRanking(days),
+                loadCardRanking(days)
+            ]);
+        }
+
+        async function loadSearchStats(period, days) {
+            try {
+                const response = await Auth.authFetch(`/api/admin/analytics/searches?period=${period}&days=${days}`);
+                if (!response.ok) return;
+                const data = await response.json();
+                renderBarChart('search-stats-chart', data.stats, '検索数');
+            } catch (e) {
+                console.error('Failed to load search stats:', e);
+            }
+        }
+
+        async function loadClickStats(period, days) {
+            try {
+                const response = await Auth.authFetch(`/api/admin/analytics/clicks?period=${period}&days=${days}`);
+                if (!response.ok) return;
+                const data = await response.json();
+                renderBarChart('click-stats-chart', data.stats, 'クリック数');
+            } catch (e) {
+                console.error('Failed to load click stats:', e);
+            }
+        }
+
+        async function loadKeywordRanking(days) {
+            try {
+                const response = await Auth.authFetch(`/api/admin/analytics/keywords?days=${days}&limit=20`);
+                if (!response.ok) return;
+                const data = await response.json();
+                renderRanking('keyword-ranking', data.ranking, 'keyword', 'count', '回');
+            } catch (e) {
+                console.error('Failed to load keyword ranking:', e);
+            }
+        }
+
+        async function loadShopRanking(days) {
+            try {
+                const response = await Auth.authFetch(`/api/admin/analytics/shops?days=${days}`);
+                if (!response.ok) return;
+                const data = await response.json();
+                renderRanking('shop-ranking', data.ranking, 'shop_name', 'count', 'クリック');
+            } catch (e) {
+                console.error('Failed to load shop ranking:', e);
+            }
+        }
+
+        async function loadCardRanking(days) {
+            try {
+                const response = await Auth.authFetch(`/api/admin/analytics/cards?days=${days}&limit=20`);
+                if (!response.ok) return;
+                const data = await response.json();
+                renderRanking('card-ranking', data.ranking, 'card_name', 'count', 'クリック');
+            } catch (e) {
+                console.error('Failed to load card ranking:', e);
+            }
+        }
+
+        function renderBarChart(containerId, data, label) {
+            const container = document.getElementById(containerId);
+            if (!data || data.length === 0) {
+                container.innerHTML = '<p class="no-data">データがありません</p>';
+                return;
+            }
+
+            // 日付順に並び替え
+            const sortedData = [...data].sort((a, b) => a.date.localeCompare(b.date));
+            const maxCount = Math.max(...sortedData.map(d => d.count));
+
+            // 対数スケールで高さを計算（小さい値も見えるように）
+            const logScale = (value, max) => {
+                if (value <= 0) return 0;
+                if (max <= 0) return 0;
+                // log(1) = 0 なので +1 してから計算
+                const logValue = Math.log10(value + 1);
+                const logMax = Math.log10(max + 1);
+                return (logValue / logMax) * 100;
+            };
+
+            container.innerHTML = `
+                <div class="chart-container">
+                    ${sortedData.map(item => {
+                        const height = logScale(item.count, maxCount);
+                        return `
+                            <div class="chart-bar-wrapper">
+                                <div class="chart-bar" style="height: ${Math.max(height, item.count > 0 ? 15 : 0)}%;" title="${item.date}: ${item.count}">
+                                    <span class="chart-bar-value">${item.count}</span>
+                                </div>
+                                <div class="chart-bar-label">${item.date.slice(-5)}</div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        function renderRanking(containerId, data, nameKey, countKey, unit) {
+            const container = document.getElementById(containerId);
+            if (!data || data.length === 0) {
+                container.innerHTML = '<p class="no-data">データがありません</p>';
+                return;
+            }
+
+            const maxCount = Math.max(...data.map(d => d[countKey]));
+
+            // 対数スケールで幅を計算
+            const logScale = (value, max) => {
+                if (value <= 0) return 0;
+                if (max <= 0) return 0;
+                const logValue = Math.log10(value + 1);
+                const logMax = Math.log10(max + 1);
+                return (logValue / logMax) * 100;
+            };
+
+            container.innerHTML = data.map((item, index) => {
+                const percentage = Math.max(logScale(item[countKey], maxCount), item[countKey] > 0 ? 15 : 0);
+                return `
+                    <div class="ranking-item">
+                        <span class="ranking-rank">${index + 1}</span>
+                        <span class="ranking-name">${escapeHtml(item[nameKey])}</span>
+                        <div class="ranking-bar-container">
+                            <div class="ranking-bar" style="width: ${percentage}%;"></div>
+                        </div>
+                        <span class="ranking-count">${item[countKey].toLocaleString()} ${unit}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // =================================================================
+        // ユーザー管理
+        // =================================================================
+
+        let userCurrentPage = 0;
+        const userPageSize = 20;
+
+        async function loadUsers(page = 0) {
+            userCurrentPage = page;
+            const search = document.getElementById('user-search').value.trim();
+            const offset = page * userPageSize;
+
+            try {
+                const params = new URLSearchParams({
+                    limit: userPageSize,
+                    offset: offset
+                });
+                if (search) params.append('search', search);
+
+                const response = await Auth.authFetch(`/api/admin/users?${params}`);
+                if (!response.ok) return;
+                const data = await response.json();
+                renderUsers(data.users, data.total);
+            } catch (e) {
+                console.error('Failed to load users:', e);
+            }
+        }
+
+        function handleUserSearch(event) {
+            if (event.key === 'Enter') {
+                loadUsers(0);
+            }
+        }
+
+        function renderUsers(users, total) {
+            const listEl = document.getElementById('user-list');
+            const paginationEl = document.getElementById('user-pagination');
+
+            if (!users || users.length === 0) {
+                listEl.innerHTML = '<p class="no-data">ユーザーがいません</p>';
+                paginationEl.innerHTML = '';
+                return;
+            }
+
+            listEl.innerHTML = `
+                <div class="user-list-header">
+                    <span class="user-col-id">ID</span>
+                    <span class="user-col-name">ユーザー名</span>
+                    <span class="user-col-email">メール</span>
+                    <span class="user-col-role">権限</span>
+                    <span class="user-col-status">状態</span>
+                    <span class="user-col-date">登録日</span>
+                    <span class="user-col-actions">操作</span>
+                </div>
+                ${users.map(user => `
+                    <div class="user-list-item ${user.is_active ? '' : 'banned'}" data-id="${user.id}">
+                        <span class="user-col-id">${user.id}</span>
+                        <span class="user-col-name">${escapeHtml(user.username)}</span>
+                        <span class="user-col-email">${escapeHtml(user.email)}</span>
+                        <span class="user-col-role">
+                            <span class="role-badge ${user.role}">${user.role === 'admin' ? '管理者' : 'ユーザー'}</span>
+                        </span>
+                        <span class="user-col-status">
+                            <span class="status-badge ${user.is_active ? 'active' : 'banned'}">${user.is_active ? 'アクティブ' : 'BAN'}</span>
+                        </span>
+                        <span class="user-col-date">${formatDate(user.created_at)}</span>
+                        <span class="user-col-actions">
+                            ${currentAdmin && currentAdmin.id !== user.id ? `
+                                <button class="user-btn toggle-role-btn" onclick="toggleUserRole(${user.id}, '${user.role}')" title="${user.role === 'admin' ? '一般ユーザーに変更' : '管理者にする'}">
+                                    ${user.role === 'admin' ? '権限剥奪' : '管理者化'}
+                                </button>
+                                <button class="user-btn toggle-ban-btn ${user.is_active ? '' : 'unban'}" onclick="toggleUserBan(${user.id}, ${user.is_active})" title="${user.is_active ? 'BANする' : 'BAN解除'}">
+                                    ${user.is_active ? 'BAN' : '解除'}
+                                </button>
+                            ` : '<span class="self-label">自分</span>'}
+                        </span>
+                    </div>
+                `).join('')}
+            `;
+
+            const totalPages = Math.ceil(total / userPageSize);
+            if (totalPages <= 1) {
+                paginationEl.innerHTML = `<span class="page-info">${total}件</span>`;
+                return;
+            }
+
+            let paginationHtml = `<span class="page-info">${total}件中 ${userCurrentPage * userPageSize + 1}-${Math.min((userCurrentPage + 1) * userPageSize, total)}件</span>`;
+
+            if (userCurrentPage > 0) {
+                paginationHtml += `<button class="page-btn" onclick="loadUsers(${userCurrentPage - 1})">前へ</button>`;
+            }
+
+            paginationHtml += `<span class="page-current">${userCurrentPage + 1} / ${totalPages}</span>`;
+
+            if (userCurrentPage < totalPages - 1) {
+                paginationHtml += `<button class="page-btn" onclick="loadUsers(${userCurrentPage + 1})">次へ</button>`;
+            }
+
+            paginationEl.innerHTML = paginationHtml;
+        }
+
+        async function toggleUserRole(userId, currentRole) {
+            const newRole = currentRole === 'admin' ? 'user' : 'admin';
+            const action = newRole === 'admin' ? '管理者権限を付与' : '管理者権限を剥奪';
+
+            if (!confirm(`このユーザーの${action}しますか？`)) return;
+
+            try {
+                const response = await Auth.authFetch(`/api/admin/users/${userId}/role`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ role: newRole })
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    alert(data.detail || '変更に失敗しました');
+                    return;
+                }
+
+                alert(data.message);
+                loadUsers(userCurrentPage);
+            } catch (e) {
+                alert(e.message);
+            }
+        }
+
+        async function toggleUserBan(userId, isActive) {
+            const action = isActive ? 'BAN' : 'BAN解除';
+
+            if (!confirm(`このユーザーを${action}しますか？`)) return;
+
+            try {
+                const response = await Auth.authFetch(`/api/admin/users/${userId}/status`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_active: isActive ? 0 : 1 })
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    alert(data.detail || '変更に失敗しました');
+                    return;
+                }
+
+                alert(data.message);
+                loadUsers(userCurrentPage);
+            } catch (e) {
+                alert(e.message);
+            }
+        }
+
+        // =================================================================
+        // その他
+        // =================================================================
+
         async function handleUpdatePopular() {
             const successEl = document.getElementById('popular-success');
             successEl.textContent = '';
@@ -522,7 +1715,6 @@
             }
         }
 
-        // 招待コード生成処理
         async function handleGenerateInvite() {
             try {
                 const response = await Auth.authFetch('/api/admin/invites', {
@@ -542,13 +1734,365 @@
             }
         }
 
-        // 招待コードをコピー
         function copyInviteCode(code) {
             navigator.clipboard.writeText(code).then(() => {
                 alert('招待コードをコピーしました');
             }).catch(() => {
                 prompt('招待コード:', code);
             });
+        }
+
+        // ===========================================
+        // カード統合機能
+        // ===========================================
+
+        let selectedCardsForGroup = [];
+        let groupSearchTimeout = null;
+
+        // カード検索（統合用）
+        function handleGroupCardSearch(event) {
+            clearTimeout(groupSearchTimeout);
+            const query = event.target.value.trim();
+
+            if (query.length < 2) {
+                document.getElementById('group-search-results').innerHTML = '';
+                return;
+            }
+
+            groupSearchTimeout = setTimeout(() => {
+                searchCardsForGroup(query);
+            }, 300);
+        }
+
+        async function searchCardsForGroup(query) {
+            const resultsEl = document.getElementById('group-search-results');
+            resultsEl.innerHTML = '<p>検索中...</p>';
+
+            try {
+                const response = await fetch(`/api/admin/cards/search?q=${encodeURIComponent(query)}`, {
+                    headers: { 'Authorization': `Bearer ${Auth.getToken()}` }
+                });
+
+                if (!response.ok) throw new Error('検索に失敗しました');
+
+                const data = await response.json();
+
+                if (data.cards.length === 0) {
+                    resultsEl.innerHTML = '<p>カードが見つかりません</p>';
+                    return;
+                }
+
+                resultsEl.innerHTML = data.cards.map(card => {
+                    const isSelected = selectedCardsForGroup.some(c => c.id === card.id);
+                    const cardNo = card.extracted_card_no || '番号なし';
+                    const shopName = card.shop_name || '';
+                    const minPrice = card.min_price ? `${card.min_price.toLocaleString()}円` : '';
+
+                    return `
+                        <div class="group-search-item ${isSelected ? 'selected' : ''}"
+                             onclick="toggleCardSelection(${card.id}, '${escapeHtml(card.name)}', '${cardNo}')">
+                            <div class="search-item-name">${escapeHtml(card.name)}</div>
+                            <div class="search-item-meta">
+                                <span class="card-no-badge">${cardNo}</span>
+                                ${shopName ? `<span class="shop-badge">${shopName}</span>` : ''}
+                                ${minPrice ? `<span class="price-badge">${minPrice}</span>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                resultsEl.innerHTML = `<p class="error">${error.message}</p>`;
+            }
+        }
+
+        function toggleCardSelection(cardId, cardName, cardNo) {
+            const index = selectedCardsForGroup.findIndex(c => c.id === cardId);
+
+            if (index >= 0) {
+                selectedCardsForGroup.splice(index, 1);
+            } else {
+                selectedCardsForGroup.push({ id: cardId, name: cardName, cardNo: cardNo });
+            }
+
+            updateSelectedCardsDisplay();
+
+            // 検索結果の選択状態も更新
+            const searchItems = document.querySelectorAll('.group-search-item');
+            searchItems.forEach(item => {
+                const onclick = item.getAttribute('onclick');
+                if (onclick && onclick.includes(`(${cardId},`)) {
+                    item.classList.toggle('selected', selectedCardsForGroup.some(c => c.id === cardId));
+                }
+            });
+        }
+
+        function updateSelectedCardsDisplay() {
+            const listEl = document.getElementById('selected-cards-list');
+            const countEl = document.getElementById('selected-count');
+            const createBtn = document.getElementById('create-group-btn');
+
+            countEl.textContent = selectedCardsForGroup.length;
+            createBtn.disabled = selectedCardsForGroup.length < 2;
+
+            if (selectedCardsForGroup.length === 0) {
+                listEl.innerHTML = '<p class="empty-message">統合するカードを選択してください（2件以上）</p>';
+                return;
+            }
+
+            listEl.innerHTML = selectedCardsForGroup.map(card => `
+                <div class="selected-card-item">
+                    <span class="card-name">${escapeHtml(card.name)}</span>
+                    <span class="card-no">${card.cardNo}</span>
+                    <button class="remove-btn" onclick="toggleCardSelection(${card.id}, '', '')">&times;</button>
+                </div>
+            `).join('');
+        }
+
+        async function handleCreateGroup() {
+            const nameEl = document.getElementById('group-name');
+            const errorEl = document.getElementById('group-error');
+            const successEl = document.getElementById('group-success');
+
+            errorEl.textContent = '';
+            successEl.textContent = '';
+
+            const groupName = nameEl.value.trim() || selectedCardsForGroup[0]?.name || 'グループ';
+
+            if (selectedCardsForGroup.length < 2) {
+                errorEl.textContent = '2件以上のカードを選択してください';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/admin/card-groups', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${Auth.getToken()}`
+                    },
+                    body: JSON.stringify({
+                        name: groupName,
+                        card_ids: selectedCardsForGroup.map(c => c.id)
+                    })
+                });
+
+                if (!response.ok) throw new Error('グループの作成に失敗しました');
+
+                successEl.textContent = 'グループを作成しました';
+                selectedCardsForGroup = [];
+                nameEl.value = '';
+                document.getElementById('group-card-search').value = '';
+                document.getElementById('group-search-results').innerHTML = '';
+                updateSelectedCardsDisplay();
+                loadCardGroups();
+            } catch (error) {
+                errorEl.textContent = error.message;
+            }
+        }
+
+        async function loadCardGroups() {
+            const listEl = document.getElementById('card-groups-list');
+            listEl.innerHTML = '<p>読み込み中...</p>';
+
+            try {
+                const response = await fetch('/api/admin/card-groups', {
+                    headers: { 'Authorization': `Bearer ${Auth.getToken()}` }
+                });
+
+                if (!response.ok) throw new Error('読み込みに失敗しました');
+
+                const data = await response.json();
+
+                if (data.groups.length === 0) {
+                    listEl.innerHTML = '<p>グループがありません</p>';
+                    return;
+                }
+
+                listEl.innerHTML = data.groups.map(group => `
+                    <div class="card-group-item">
+                        <div class="group-header">
+                            <span class="group-name">${escapeHtml(group.name)}</span>
+                            <span class="group-count">${group.member_count}件</span>
+                            <button class="admin-btn admin-btn-small" onclick="toggleGroupDetail(${group.id})">詳細</button>
+                            <button class="admin-btn admin-btn-danger admin-btn-small" onclick="handleDeleteGroup(${group.id})">削除</button>
+                        </div>
+                        <div class="group-detail" id="group-detail-${group.id}" style="display: none;"></div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                listEl.innerHTML = `<p class="error">${error.message}</p>`;
+            }
+        }
+
+        async function toggleGroupDetail(groupId) {
+            const detailEl = document.getElementById(`group-detail-${groupId}`);
+
+            if (detailEl.style.display === 'block') {
+                detailEl.style.display = 'none';
+                return;
+            }
+
+            detailEl.innerHTML = '<p>読み込み中...</p>';
+            detailEl.style.display = 'block';
+
+            try {
+                const response = await fetch(`/api/admin/card-groups/${groupId}/members`, {
+                    headers: { 'Authorization': `Bearer ${Auth.getToken()}` }
+                });
+
+                if (!response.ok) throw new Error('読み込みに失敗しました');
+
+                const data = await response.json();
+
+                detailEl.innerHTML = data.members.map(card => `
+                    <div class="group-member-item">
+                        <span class="member-name">${escapeHtml(card.name)}</span>
+                        <span class="member-no">${card.extracted_card_no || '番号なし'}</span>
+                        <span class="member-price">${card.min_price ? card.min_price.toLocaleString() + '円' : ''}</span>
+                        <button class="admin-btn admin-btn-danger admin-btn-small" onclick="handleRemoveFromGroup(${groupId}, ${card.id})">除外</button>
+                    </div>
+                `).join('');
+            } catch (error) {
+                detailEl.innerHTML = `<p class="error">${error.message}</p>`;
+            }
+        }
+
+        async function handleDeleteGroup(groupId) {
+            if (!confirm('このグループを削除しますか？')) return;
+
+            try {
+                const response = await fetch(`/api/admin/card-groups/${groupId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${Auth.getToken()}` }
+                });
+
+                if (!response.ok) throw new Error('削除に失敗しました');
+
+                loadCardGroups();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        async function handleRemoveFromGroup(groupId, cardId) {
+            try {
+                const response = await fetch(`/api/admin/card-groups/${groupId}/members/${cardId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${Auth.getToken()}` }
+                });
+
+                if (!response.ok) throw new Error('削除に失敗しました');
+
+                toggleGroupDetail(groupId);  // 詳細を再読み込み
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        // =============================================================================
+        // X投稿キュー
+        // =============================================================================
+
+        async function loadXPosts() {
+            const listEl = document.getElementById('x-posts-list');
+            const pendingOnly = document.getElementById('x-posts-pending-only').checked;
+
+            listEl.innerHTML = '<p>読み込み中...</p>';
+
+            try {
+                const response = await fetch(`/api/admin/x-posts?pending_only=${pendingOnly}&limit=50`, {
+                    headers: { 'Authorization': `Bearer ${Auth.getToken()}` }
+                });
+
+                if (!response.ok) throw new Error('読み込みに失敗しました');
+
+                const data = await response.json();
+
+                if (data.posts.length === 0) {
+                    listEl.innerHTML = '<p class="no-data">投稿キューはありません</p>';
+                    return;
+                }
+
+                listEl.innerHTML = data.posts.map(post => `
+                    <div class="x-post-item ${post.status === 'posted' ? 'posted' : 'pending'}">
+                        <div class="x-post-header">
+                            <span class="x-post-type">${getPostTypeLabel(post.post_type)}</span>
+                            <span class="x-post-status ${post.status}">${post.status === 'posted' ? '投稿済み' : '未投稿'}</span>
+                            <span class="x-post-date">${formatDate(post.created_at)}</span>
+                        </div>
+                        <div class="x-post-content">
+                            <pre>${escapeHtml(post.content)}</pre>
+                        </div>
+                        <div class="x-post-actions">
+                            ${post.status === 'pending' ? `
+                                <a href="https://twitter.com/intent/tweet?text=${encodeURIComponent(post.content)}"
+                                   target="_blank"
+                                   class="admin-btn admin-btn-small"
+                                   onclick="markAsPosted(${post.id})">
+                                   Xで投稿
+                                </a>
+                                <button class="admin-btn admin-btn-small admin-btn-secondary" onclick="copyToClipboard('${escapeForJs(post.content)}')">コピー</button>
+                                <button class="admin-btn admin-btn-small admin-btn-danger" onclick="deleteXPost(${post.id})">削除</button>
+                            ` : `
+                                <span class="posted-at">投稿日時: ${formatDate(post.posted_at)}</span>
+                            `}
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                listEl.innerHTML = `<p class="error">${error.message}</p>`;
+            }
+        }
+
+        function getPostTypeLabel(type) {
+            switch (type) {
+                case 'price_drop': return '📉 値下げ';
+                case 'price_rise': return '📈 値上げ';
+                case 'summary': return '📊 まとめ';
+                default: return type;
+            }
+        }
+
+        async function markAsPosted(postId) {
+            try {
+                await fetch(`/api/admin/x-posts/${postId}/posted`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${Auth.getToken()}` }
+                });
+                // 少し待ってからリロード（投稿画面が開いてから）
+                setTimeout(() => loadXPosts(), 1000);
+            } catch (error) {
+                console.error('Failed to mark as posted:', error);
+            }
+        }
+
+        async function deleteXPost(postId) {
+            if (!confirm('この投稿を削除しますか？')) return;
+
+            try {
+                const response = await fetch(`/api/admin/x-posts/${postId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${Auth.getToken()}` }
+                });
+
+                if (!response.ok) throw new Error('削除に失敗しました');
+
+                loadXPosts();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('クリップボードにコピーしました');
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+            });
+        }
+
+        function escapeForJs(text) {
+            return text.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
         }
 
         // ユーティリティ
@@ -560,8 +2104,14 @@
 
         function formatDate(dateStr) {
             if (!dateStr) return '';
-            const date = new Date(dateStr);
+            // UTCとして解釈するためにZを追加（既にある場合は追加しない）
+            let utcStr = dateStr;
+            if (!dateStr.endsWith('Z') && !dateStr.includes('+')) {
+                utcStr = dateStr.replace(' ', 'T') + 'Z';
+            }
+            const date = new Date(utcStr);
             return date.toLocaleString('ja-JP', {
+                timeZone: 'Asia/Tokyo',
                 year: 'numeric',
                 month: 'numeric',
                 day: 'numeric',

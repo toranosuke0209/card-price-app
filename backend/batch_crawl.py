@@ -643,7 +643,7 @@ class BatosukiCrawler(BaseCrawler):
 
     def _parse_card_list(self, soup: BeautifulSoup) -> list[dict]:
         cards = []
-        items = soup.select("li[class*='item_list'], li[class*='footer_list']")
+        items = soup.select("li.kr-productlist_list")
 
         for item in items:
             try:

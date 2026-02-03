@@ -57,6 +57,8 @@ from database import (
     migrate_v2,
     migrate_v3_auth,
     migrate_v4_featured_keywords,
+    migrate_v5_amazon_products,
+    get_connection,
     get_all_shops,
     get_shop_by_name,
     get_latest_prices_by_keyword,
@@ -86,6 +88,17 @@ from database import (
     get_all_admin_invites,
     get_admin_stats,
     get_card_by_id,
+    get_card_all_prices,
+    get_card_price_history,
+    get_unified_card_prices,
+    get_related_cards,
+    get_card_groups,
+    get_group_members,
+    add_card_to_group,
+    remove_card_from_group,
+    delete_card_group,
+    migrate_v7_card_groups,
+    update_card_numbers,
     get_or_create_card_v2,
     update_popular_cards,
     # 人気キーワード関連
@@ -94,6 +107,37 @@ from database import (
     update_featured_keyword,
     delete_featured_keyword,
     reorder_featured_keywords,
+    # Amazon商品関連
+    get_amazon_products,
+    get_amazon_product_by_id,
+    add_amazon_product,
+    update_amazon_product,
+    delete_amazon_product,
+    reorder_amazon_products,
+    # アクセス解析関連
+    get_search_stats,
+    get_click_stats,
+    get_keyword_ranking,
+    get_shop_click_ranking,
+    get_card_click_ranking,
+    # ユーザー管理関連
+    get_users_paginated,
+    update_user_is_active,
+    update_user_role,
+    # 通知関連
+    migrate_v8_notifications,
+    get_user_notifications,
+    get_unread_notification_count,
+    mark_notification_read,
+    mark_all_notifications_read,
+    get_notification_settings,
+    update_notification_settings,
+    # X投稿キュー関連
+    migrate_v9_x_post_queue,
+    get_pending_x_posts,
+    get_all_x_posts,
+    mark_x_post_as_posted,
+    delete_x_post,
 )
 
 from auth import (
@@ -124,6 +168,9 @@ async def startup():
     migrate_v2()  # v2マイグレーション実行
     migrate_v3_auth()  # v3認証マイグレーション実行
     migrate_v4_featured_keywords()  # v4人気キーワードマイグレーション実行
+    migrate_v5_amazon_products()  # v5 Amazon商品マイグレーション実行
+    migrate_v8_notifications()  # v8通知機能マイグレーション実行
+    migrate_v9_x_post_queue()  # v9 X投稿キューマイグレーション実行
     init_shops()
 
 
@@ -143,6 +190,66 @@ async def login_page():
 async def admin_page():
     """管理者ページを返す"""
     return FileResponse(frontend_path / "admin.html")
+
+
+@app.get("/search")
+async def search_page():
+    """検索結果ページを返す"""
+    return FileResponse(frontend_path / "search.html")
+
+
+@app.get("/privacy")
+async def privacy_page():
+    """プライバシーポリシーページを返す"""
+    return FileResponse(frontend_path / "privacy.html")
+
+
+@app.get("/about")
+async def about_page():
+    """このサイトについてページを返す"""
+    return FileResponse(frontend_path / "about.html")
+
+
+@app.get("/ranking")
+async def ranking_page():
+    """ランキングページを返す"""
+    return FileResponse(frontend_path / "ranking.html")
+
+
+@app.get("/shops")
+async def shops_page():
+    """ショップ一覧ページを返す"""
+    return FileResponse(frontend_path / "shops.html")
+
+
+@app.get("/favorites")
+async def favorites_page():
+    """お気に入りページを返す"""
+    return FileResponse(frontend_path / "favorites.html")
+
+
+@app.get("/card/{card_id}")
+async def card_page(card_id: int):
+    """カード詳細ページを返す"""
+    return FileResponse(frontend_path / "card.html")
+
+
+@app.get("/robots.txt")
+async def robots_txt():
+    """robots.txtを返す"""
+    return FileResponse(frontend_path / "robots.txt", media_type="text/plain")
+
+
+@app.get("/ads.txt")
+async def ads_txt():
+    """ads.txtを返す"""
+    return FileResponse(frontend_path / "ads.txt", media_type="text/plain")
+
+
+@app.get("/sitemap.xml")
+async def sitemap_xml():
+    """sitemap.xmlを返す"""
+    return FileResponse(frontend_path / "sitemap.xml", media_type="application/xml")
 
 
 @app.get("/api/image-proxy")
@@ -180,49 +287,70 @@ async def image_proxy(url: str = Query(..., description="画像URL")):
 
 
 @app.get("/api/search")
-async def search(keyword: str = Query(..., min_length=1, description="検索キーワード")):
+async def search(
+    keyword: str = Query(..., min_length=1, description="検索キーワード"),
+    page: int = Query(1, ge=1, description="ページ番号"),
+    per_page: int = Query(20, ge=1, le=100, description="1ページあたりの件数"),
+    sort: str = Query("price-asc", description="ソート順"),
+    stock: str = Query("all", description="在庫フィルター")
+):
     """
     キーワードで商品を検索（DB参照）
 
     - keyword: 検索キーワード（必須）
-
-    レスポンス形式は旧API互換を維持
+    - page: ページ番号（デフォルト: 1）
+    - per_page: 1ページあたりの件数（デフォルト: 20、最大: 100）
+    - sort: ソート順（price-asc, price-desc, site）
+    - stock: 在庫フィルター（all, in-stock, out-of-stock）
     """
-    # DBから最新価格を取得
-    prices = get_latest_prices_by_keyword(keyword, limit=200)
+    # DBから最新価格を取得（全件取得してからフィルタ・ソート）
+    prices = get_latest_prices_by_keyword(keyword, limit=500)
 
-    # 検索ログを記録
-    record_search(keyword, len(prices))
+    # 検索ログを記録（初回ページのみ）
+    if page == 1:
+        record_search(keyword, len(prices))
 
-    # 結果が少なければキーワードを自動追加（次回バッチで取得される）
-    if len(prices) < 5:
-        add_keyword_if_new(keyword)
-        # キューにも追加（batch_queue.pyで処理される）
-        add_to_fetch_queue(keyword, source='search', priority=0)
+        # 結果が少なければキーワードを自動追加（次回バッチで取得される）
+        if len(prices) < 5:
+            add_keyword_if_new(keyword)
+            # キューにも追加（batch_queue.pyで処理される）
+            add_to_fetch_queue(keyword, source='search', priority=0)
 
-    # サイト別にグループ化（旧API互換形式）
-    site_items = {}
-    for price in prices:
-        site_name = price.shop_name
-        if site_name not in site_items:
-            site_items[site_name] = []
-        site_items[site_name].append(price.to_dict())
+    # フラット化してリストに変換
+    all_items = [price.to_dict() for price in prices]
 
-    # 全ショップのリストを取得（データがないショップも含める）
-    all_shops = get_all_shops()
-    site_results = []
+    # 在庫フィルター
+    if stock == "in-stock":
+        all_items = [item for item in all_items if item.get("stock", 0) > 0]
+    elif stock == "out-of-stock":
+        all_items = [item for item in all_items if item.get("stock", 0) == 0]
 
-    for shop in all_shops:
-        items = site_items.get(shop.name, [])
-        site_results.append({
-            "site": shop.name,
-            "items": items
-        })
+    # ソート
+    if sort == "price-asc":
+        all_items.sort(key=lambda x: x.get("price", 0))
+    elif sort == "price-desc":
+        all_items.sort(key=lambda x: x.get("price", 0), reverse=True)
+    elif sort == "site":
+        all_items.sort(key=lambda x: x.get("site", ""))
+
+    # 総件数
+    total_count = len(all_items)
+    total_pages = (total_count + per_page - 1) // per_page
+
+    # ページネーション
+    start = (page - 1) * per_page
+    end = start + per_page
+    paginated_items = all_items[start:end]
 
     return {
         "keyword": keyword,
-        "results": site_results,
-        "total_count": len(prices)
+        "items": paginated_items,
+        "total_count": total_count,
+        "page": page,
+        "per_page": per_page,
+        "total_pages": total_pages,
+        "sort": sort,
+        "stock": stock
     }
 
 
@@ -286,6 +414,88 @@ async def get_home_data():
         },
         "batch_logs": batch_logs,
         "featured_keywords": featured_keywords_list,
+    }
+
+
+@app.get("/api/ranking")
+async def get_ranking_data():
+    """
+    ランキングページ用データを取得
+    """
+    # 人気検索キーワード（過去30日）
+    keyword_ranking = get_keyword_ranking(days=30, limit=30)
+
+    # 人気カード（クリック数、過去30日）
+    hot_cards = get_hot_cards(days=30, limit=30)
+
+    # 値上がりカード
+    price_up = get_price_increased_cards(limit=30)
+
+    # 値下がりカード
+    price_down = get_price_decreased_cards(limit=30)
+
+    return {
+        "keyword_ranking": keyword_ranking,
+        "hot_cards": hot_cards,
+        "price_up": price_up,
+        "price_down": price_down,
+    }
+
+
+@app.get("/api/shops")
+async def get_shops_data():
+    """
+    ショップ一覧ページ用データを取得
+    """
+    shops = get_all_shops(active_only=True)
+
+    # ショップ情報に追加データを付与
+    shop_list = []
+    for shop in shops:
+        shop_dict = shop.to_dict()
+        # ショップごとの価格データ数を取得
+        with get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT COUNT(*) FROM prices WHERE shop_id = ?",
+                (shop.id,)
+            )
+            shop_dict["price_count"] = cursor.fetchone()[0]
+        shop_list.append(shop_dict)
+
+    return {"shops": shop_list}
+
+
+@app.get("/api/card/{card_id}")
+async def get_card_detail(card_id: int):
+    """
+    カード詳細情報を取得（カード詳細ページ用）
+    - 同じカード番号を持つカードの価格を統合
+    - リバイバル/旧版などの関連カードを表示
+    """
+    # 統合された価格情報を取得
+    unified = get_unified_card_prices(card_id)
+    if not unified:
+        raise HTTPException(status_code=404, detail="Card not found")
+
+    card = unified['card']
+    prices = unified['prices']
+
+    # 価格履歴を取得（関連カード全ての価格履歴を統合）
+    price_history = get_card_price_history(card_id, days=30)
+
+    # 関連カード（リバイバル/旧版）を取得
+    related_cards = get_related_cards(card_id, unified.get('base_name'))
+
+    return {
+        "card": card,
+        "card_no": unified.get('card_no'),
+        "base_name": unified.get('base_name'),
+        "prices": [p.to_dict() for p in prices],
+        "price_history": price_history,
+        "min_price": min(p.price for p in prices) if prices else None,
+        "max_price": max(p.price for p in prices) if prices else None,
+        "shop_count": len(set(p.shop_id for p in prices)),
+        "related_cards": related_cards,
     }
 
 
@@ -386,7 +596,7 @@ async def register(user_data: UserCreate):
 
     # トークン発行
     access_token = create_access_token(
-        data={"sub": user.id, "username": user.username}
+        data={"sub": str(user.id), "username": user.username}
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -405,7 +615,7 @@ async def login(login_data: UserLogin):
         )
 
     access_token = create_access_token(
-        data={"sub": user.id, "username": user.username}
+        data={"sub": str(user.id), "username": user.username}
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -474,7 +684,7 @@ async def admin_register(admin_data: AdminRegister):
 
     # トークン発行
     access_token = create_access_token(
-        data={"sub": user.id, "username": user.username}
+        data={"sub": str(user.id), "username": user.username}
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -547,6 +757,72 @@ async def remove_favorite_card(
         )
 
     return {"message": "お気に入りから削除しました", "card_id": card_id}
+
+
+# =============================================================================
+# 通知API
+# =============================================================================
+
+@app.get("/api/notifications")
+async def get_notifications(
+    unread_only: bool = False,
+    limit: int = 50,
+    current_user: User = Depends(get_current_user_required)
+):
+    """通知一覧を取得"""
+    notifications = get_user_notifications(current_user.id, unread_only, limit)
+    return {"notifications": notifications}
+
+
+@app.get("/api/notifications/count")
+async def get_notification_count(current_user: User = Depends(get_current_user_required)):
+    """未読通知数を取得"""
+    count = get_unread_notification_count(current_user.id)
+    return {"unread_count": count}
+
+
+@app.post("/api/notifications/{notification_id}/read")
+async def mark_read(
+    notification_id: int,
+    current_user: User = Depends(get_current_user_required)
+):
+    """通知を既読にする"""
+    success = mark_notification_read(notification_id, current_user.id)
+    if not success:
+        raise HTTPException(status_code=404, detail="通知が見つかりません")
+    return {"message": "既読にしました"}
+
+
+@app.post("/api/notifications/read-all")
+async def mark_all_read(current_user: User = Depends(get_current_user_required)):
+    """全通知を既読にする"""
+    count = mark_all_notifications_read(current_user.id)
+    return {"message": f"{count}件を既読にしました", "count": count}
+
+
+@app.get("/api/notifications/settings")
+async def get_settings(current_user: User = Depends(get_current_user_required)):
+    """通知設定を取得"""
+    settings = get_notification_settings(current_user.id)
+    return {"settings": settings}
+
+
+class NotificationSettingsUpdate(BaseModel):
+    email_enabled: Optional[int] = None
+    email_address: Optional[str] = None
+    site_enabled: Optional[int] = None
+    price_drop_threshold: Optional[int] = None
+    price_rise_threshold: Optional[int] = None
+
+
+@app.put("/api/notifications/settings")
+async def update_settings(
+    settings: NotificationSettingsUpdate,
+    current_user: User = Depends(get_current_user_required)
+):
+    """通知設定を更新"""
+    updated = update_notification_settings(current_user.id, settings.dict(exclude_none=True))
+    return {"settings": updated}
 
 
 # =============================================================================
@@ -803,6 +1079,537 @@ async def update_all_keyword_prices_api(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"価格更新に失敗しました: {str(e)}"
         )
+
+
+# =============================================================================
+# Amazon商品API
+# =============================================================================
+
+AMAZON_AFFILIATE_TAG = "bsprice-22"
+
+
+class AmazonProductCreate(BaseModel):
+    url: str  # AmazonのURL（ASINを抽出する）
+    name: str
+    price: int
+    image_url: str
+
+
+class AmazonProductUpdate(BaseModel):
+    name: Optional[str] = None
+    price: Optional[int] = None
+    image_url: Optional[str] = None
+    is_active: Optional[int] = None
+
+
+class AmazonProductReorder(BaseModel):
+    product_ids: list[int]
+
+
+def extract_asin_from_url(url: str) -> Optional[str]:
+    """AmazonのURLからASINを抽出"""
+    import re
+    # /dp/ASIN or /gp/product/ASIN パターン
+    patterns = [
+        r'/dp/([A-Z0-9]{10})',
+        r'/gp/product/([A-Z0-9]{10})',
+        r'/product/([A-Z0-9]{10})',
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, url)
+        if match:
+            return match.group(1)
+    return None
+
+
+@app.get("/api/amazon-products")
+async def list_amazon_products():
+    """Amazon商品一覧を取得（公開API）"""
+    products = get_amazon_products(active_only=True)
+    return {"products": [p.to_dict() for p in products]}
+
+
+@app.get("/api/admin/amazon-products")
+async def list_amazon_products_admin(admin_user: User = Depends(require_admin)):
+    """Amazon商品一覧を取得（管理者用、非アクティブも含む）"""
+    products = get_amazon_products(active_only=False)
+    return {"products": [p.to_dict() for p in products]}
+
+
+@app.post("/api/admin/amazon-products")
+async def create_amazon_product(
+    data: AmazonProductCreate,
+    admin_user: User = Depends(require_admin)
+):
+    """Amazon商品を追加"""
+    # ASINを抽出
+    asin = extract_asin_from_url(data.url)
+    if not asin:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="AmazonのURLからASINを抽出できませんでした"
+        )
+
+    try:
+        product = add_amazon_product(
+            asin=asin,
+            name=data.name,
+            price=data.price,
+            image_url=data.image_url,
+            affiliate_tag=AMAZON_AFFILIATE_TAG
+        )
+        return {"message": "商品を追加しました", "product": product.to_dict()}
+    except Exception as e:
+        if "UNIQUE constraint failed" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="この商品は既に登録されています"
+            )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"追加に失敗しました: {str(e)}"
+        )
+
+
+@app.put("/api/admin/amazon-products/{product_id}")
+async def update_amazon_product_api(
+    product_id: int,
+    data: AmazonProductUpdate,
+    admin_user: User = Depends(require_admin)
+):
+    """Amazon商品を更新"""
+    product = update_amazon_product(
+        product_id,
+        name=data.name,
+        price=data.price,
+        image_url=data.image_url,
+        is_active=data.is_active
+    )
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="商品が見つかりません"
+        )
+    return {"message": "商品を更新しました", "product": product.to_dict()}
+
+
+@app.delete("/api/admin/amazon-products/{product_id}")
+async def delete_amazon_product_api(
+    product_id: int,
+    admin_user: User = Depends(require_admin)
+):
+    """Amazon商品を削除"""
+    success = delete_amazon_product(product_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="商品が見つかりません"
+        )
+    return {"message": "商品を削除しました"}
+
+
+@app.post("/api/admin/amazon-products/reorder")
+async def reorder_amazon_products_api(
+    data: AmazonProductReorder,
+    admin_user: User = Depends(require_admin)
+):
+    """Amazon商品の表示順を変更"""
+    reorder_amazon_products(data.product_ids)
+    return {"message": "表示順を更新しました"}
+
+
+# ==================== 楽天商品API ====================
+
+from database import (
+    get_rakuten_products, get_rakuten_product_by_id, add_rakuten_product,
+    update_rakuten_product, delete_rakuten_product, reorder_rakuten_products
+)
+
+RAKUTEN_AFFILIATE_ID = "507d6316.932e0e43.507d6317.e71fdd26"
+
+
+class RakutenProductCreate(BaseModel):
+    name: str
+    price: int
+    image_url: str
+    affiliate_url: str
+
+
+class RakutenProductUpdate(BaseModel):
+    name: Optional[str] = None
+    price: Optional[int] = None
+    image_url: Optional[str] = None
+    is_active: Optional[int] = None
+
+
+class RakutenProductReorder(BaseModel):
+    product_ids: list[int]
+
+
+@app.get("/api/rakuten-products")
+async def list_rakuten_products():
+    """楽天商品一覧を取得（公開API）"""
+    products = get_rakuten_products(active_only=True)
+    return {"products": [p.to_dict() for p in products]}
+
+
+@app.get("/api/admin/rakuten-products")
+async def list_rakuten_products_admin(admin_user: User = Depends(require_admin)):
+    """楽天商品一覧を取得（管理者用、非アクティブも含む）"""
+    products = get_rakuten_products(active_only=False)
+    return {"products": [p.to_dict() for p in products]}
+
+
+@app.post("/api/admin/rakuten-products")
+async def create_rakuten_product(
+    data: RakutenProductCreate,
+    admin_user: User = Depends(require_admin)
+):
+    """楽天商品を追加"""
+    # URLから商品コードを抽出（簡易的に）
+    import re
+    item_code_match = re.search(r'item\.rakuten\.co\.jp/([^/]+)/([^/]+)', data.affiliate_url)
+    if item_code_match:
+        item_code = f"{item_code_match.group(1)}_{item_code_match.group(2)}"
+    else:
+        item_code = str(hash(data.affiliate_url))[:16]
+
+    product = add_rakuten_product(
+        item_code=item_code,
+        name=data.name,
+        price=data.price,
+        image_url=data.image_url,
+        affiliate_url=data.affiliate_url
+    )
+    return {"product": product.to_dict()}
+
+
+@app.put("/api/admin/rakuten-products/{product_id}")
+async def update_rakuten_product_api(
+    product_id: int,
+    data: RakutenProductUpdate,
+    admin_user: User = Depends(require_admin)
+):
+    """楽天商品を更新"""
+    product = update_rakuten_product(
+        product_id,
+        name=data.name,
+        price=data.price,
+        image_url=data.image_url,
+        is_active=data.is_active
+    )
+    if not product:
+        raise HTTPException(status_code=404, detail="商品が見つかりません")
+    return {"product": product.to_dict()}
+
+
+@app.delete("/api/admin/rakuten-products/{product_id}")
+async def delete_rakuten_product_api(
+    product_id: int,
+    admin_user: User = Depends(require_admin)
+):
+    """楽天商品を削除"""
+    if delete_rakuten_product(product_id):
+        return {"message": "削除しました"}
+    raise HTTPException(status_code=404, detail="商品が見つかりません")
+
+
+@app.post("/api/admin/rakuten-products/reorder")
+async def reorder_rakuten_products_api(
+    data: RakutenProductReorder,
+    admin_user: User = Depends(require_admin)
+):
+    """楽天商品の表示順を変更"""
+    reorder_rakuten_products(data.product_ids)
+    return {"message": "表示順を更新しました"}
+
+
+# =============================================================================
+# アクセス解析API
+# =============================================================================
+
+@app.get("/api/admin/analytics/searches")
+async def get_analytics_searches(
+    period: str = Query("daily", description="集計期間: daily, weekly, monthly"),
+    days: int = Query(30, ge=1, le=365, description="取得日数"),
+    admin_user: User = Depends(require_admin)
+):
+    """検索統計を取得"""
+    stats = get_search_stats(period=period, days=days)
+    return {"period": period, "days": days, "stats": stats}
+
+
+@app.get("/api/admin/analytics/clicks")
+async def get_analytics_clicks(
+    period: str = Query("daily", description="集計期間: daily, weekly, monthly"),
+    days: int = Query(30, ge=1, le=365, description="取得日数"),
+    admin_user: User = Depends(require_admin)
+):
+    """クリック統計を取得"""
+    stats = get_click_stats(period=period, days=days)
+    return {"period": period, "days": days, "stats": stats}
+
+
+@app.get("/api/admin/analytics/keywords")
+async def get_analytics_keywords(
+    days: int = Query(30, ge=1, le=365, description="取得日数"),
+    limit: int = Query(20, ge=1, le=100, description="取得件数"),
+    admin_user: User = Depends(require_admin)
+):
+    """人気検索キーワードランキングを取得"""
+    ranking = get_keyword_ranking(days=days, limit=limit)
+    return {"days": days, "ranking": ranking}
+
+
+@app.get("/api/admin/analytics/shops")
+async def get_analytics_shops(
+    days: int = Query(30, ge=1, le=365, description="取得日数"),
+    admin_user: User = Depends(require_admin)
+):
+    """ショップ別クリック数を取得"""
+    ranking = get_shop_click_ranking(days=days)
+    return {"days": days, "ranking": ranking}
+
+
+@app.get("/api/admin/analytics/cards")
+async def get_analytics_cards(
+    days: int = Query(30, ge=1, le=365, description="取得日数"),
+    limit: int = Query(20, ge=1, le=100, description="取得件数"),
+    admin_user: User = Depends(require_admin)
+):
+    """人気カードランキング（クリック数）を取得"""
+    ranking = get_card_click_ranking(days=days, limit=limit)
+    return {"days": days, "ranking": ranking}
+
+
+# =============================================================================
+# ユーザー管理API
+# =============================================================================
+
+@app.get("/api/admin/users")
+async def get_admin_users(
+    limit: int = Query(20, ge=1, le=100, description="取得件数"),
+    offset: int = Query(0, ge=0, description="オフセット"),
+    search: str = Query(None, description="検索キーワード"),
+    admin_user: User = Depends(require_admin)
+):
+    """ユーザー一覧を取得（ページネーション対応）"""
+    users, total = get_users_paginated(limit=limit, offset=offset, search=search)
+    return {
+        "users": [u.to_dict() for u in users],
+        "total": total,
+        "limit": limit,
+        "offset": offset
+    }
+
+
+class UserStatusUpdate(BaseModel):
+    is_active: int
+
+
+@app.put("/api/admin/users/{user_id}/status")
+async def update_user_status(
+    user_id: int,
+    data: UserStatusUpdate,
+    admin_user: User = Depends(require_admin)
+):
+    """ユーザーのBAN/BAN解除"""
+    if data.is_active not in (0, 1):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="is_activeは0または1である必要があります"
+        )
+
+    user = update_user_is_active(user_id, data.is_active, admin_user.id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ユーザーが見つからないか、自分自身は変更できません"
+        )
+
+    action = "BAN解除" if data.is_active else "BAN"
+    return {"message": f"ユーザーを{action}しました", "user": user.to_dict()}
+
+
+class UserRoleUpdate(BaseModel):
+    role: str
+
+
+@app.put("/api/admin/users/{user_id}/role")
+async def update_user_role_api(
+    user_id: int,
+    data: UserRoleUpdate,
+    admin_user: User = Depends(require_admin)
+):
+    """ユーザーの権限を変更"""
+    if data.role not in ('user', 'admin'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="roleはuserまたはadminである必要があります"
+        )
+
+    user = update_user_role(user_id, data.role, admin_user.id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ユーザーが見つからないか、自分自身は変更できません"
+        )
+
+    action = "管理者権限を付与" if data.role == 'admin' else "一般ユーザーに変更"
+    return {"message": f"{action}しました", "user": user.to_dict()}
+
+
+# =============================================================================
+# カードグループ管理API（カード統合機能）
+# =============================================================================
+
+@app.get("/api/admin/card-groups")
+async def list_card_groups(admin_user: User = Depends(require_admin)):
+    """カードグループ一覧を取得"""
+    groups = get_card_groups()
+    return {"groups": groups}
+
+
+class CardGroupCreate(BaseModel):
+    name: str
+    card_ids: list[int] = []
+
+
+@app.post("/api/admin/card-groups")
+async def create_card_group(
+    data: CardGroupCreate,
+    admin_user: User = Depends(require_admin)
+):
+    """新しいカードグループを作成"""
+    if not data.name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="グループ名は必須です"
+        )
+
+    group_id = add_card_to_group(card_id=None, group_id=None, group_name=data.name)
+
+    # カードを追加
+    for card_id in data.card_ids:
+        add_card_to_group(card_id=card_id, group_id=group_id)
+
+    return {"message": "グループを作成しました", "group_id": group_id}
+
+
+@app.get("/api/admin/card-groups/{group_id}/members")
+async def get_card_group_members(
+    group_id: int,
+    admin_user: User = Depends(require_admin)
+):
+    """グループに属するカードを取得"""
+    members = get_group_members(group_id)
+    return {"members": members}
+
+
+class CardGroupMemberAdd(BaseModel):
+    card_id: int
+
+
+@app.post("/api/admin/card-groups/{group_id}/members")
+async def add_card_to_group_api(
+    group_id: int,
+    data: CardGroupMemberAdd,
+    admin_user: User = Depends(require_admin)
+):
+    """カードをグループに追加"""
+    add_card_to_group(card_id=data.card_id, group_id=group_id)
+    return {"message": "カードをグループに追加しました"}
+
+
+@app.delete("/api/admin/card-groups/{group_id}/members/{card_id}")
+async def remove_card_from_group_api(
+    group_id: int,
+    card_id: int,
+    admin_user: User = Depends(require_admin)
+):
+    """カードをグループから削除"""
+    remove_card_from_group(card_id=card_id, group_id=group_id)
+    return {"message": "カードをグループから削除しました"}
+
+
+@app.delete("/api/admin/card-groups/{group_id}")
+async def delete_card_group_api(
+    group_id: int,
+    admin_user: User = Depends(require_admin)
+):
+    """カードグループを削除"""
+    delete_card_group(group_id)
+    return {"message": "グループを削除しました"}
+
+
+@app.get("/api/admin/cards/search")
+async def search_cards_for_grouping(
+    q: str = Query(..., min_length=1, description="検索キーワード"),
+    admin_user: User = Depends(require_admin)
+):
+    """カード統合用のカード検索（番号なしカード優先）"""
+    from database import search_cards, get_connection
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        keyword_normalized = q.lower()
+
+        # カード番号がないカードを優先して検索
+        cursor.execute("""
+            SELECT c.*, MIN(p.price) as min_price, s.name as shop_name
+            FROM cards c
+            LEFT JOIN prices p ON c.id = p.card_id
+            LEFT JOIN shops s ON p.shop_id = s.id
+            WHERE c.name_normalized LIKE ?
+            GROUP BY c.id
+            ORDER BY
+                CASE WHEN c.extracted_card_no IS NULL THEN 0 ELSE 1 END,
+                c.name
+            LIMIT 50
+        """, (f"%{keyword_normalized}%",))
+
+        cards = [dict(row) for row in cursor.fetchall()]
+
+    return {"cards": cards}
+
+
+# =============================================================================
+# X投稿キューAPI（管理者用）
+# =============================================================================
+
+@app.get("/api/admin/x-posts")
+async def get_x_posts(
+    pending_only: bool = False,
+    limit: int = 50,
+    admin_user: User = Depends(require_admin)
+):
+    """X投稿キュー一覧を取得"""
+    posts = get_all_x_posts(limit=limit, include_posted=not pending_only)
+    return {"posts": posts}
+
+
+@app.post("/api/admin/x-posts/{post_id}/posted")
+async def mark_posted(
+    post_id: int,
+    admin_user: User = Depends(require_admin)
+):
+    """X投稿を投稿済みにマーク"""
+    success = mark_x_post_as_posted(post_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="投稿が見つかりません")
+    return {"message": "投稿済みにマークしました"}
+
+
+@app.delete("/api/admin/x-posts/{post_id}")
+async def remove_x_post(
+    post_id: int,
+    admin_user: User = Depends(require_admin)
+):
+    """X投稿を削除"""
+    success = delete_x_post(post_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="投稿が見つかりません")
+    return {"message": "削除しました"}
 
 
 if __name__ == "__main__":

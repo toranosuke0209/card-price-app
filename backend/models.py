@@ -32,6 +32,9 @@ class Card:
     detail_url: Optional[str] = None
     is_popular: int = 0
     last_price_fetch_at: Optional[datetime] = None
+    # v7追加カラム（カード統合機能用）
+    extracted_card_no: Optional[str] = None
+    base_name: Optional[str] = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -195,4 +198,64 @@ class FeaturedKeyword:
             "is_active": self.is_active,
             "created_by": self.created_by,
             "created_at": str(self.created_at) if self.created_at else None,
+        }
+
+
+@dataclass
+class AmazonProduct:
+    """Amazon商品（アフィリエイト用）"""
+    id: int
+    asin: str
+    name: str
+    price: int
+    image_url: str
+    affiliate_url: str
+    display_order: int = 0
+    is_active: int = 1
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "asin": self.asin,
+            "name": self.name,
+            "price": self.price,
+            "price_text": f"¥{self.price:,}",
+            "image_url": self.image_url,
+            "affiliate_url": self.affiliate_url,
+            "display_order": self.display_order,
+            "is_active": self.is_active,
+            "created_at": str(self.created_at) if self.created_at else None,
+            "updated_at": str(self.updated_at) if self.updated_at else None,
+        }
+
+
+@dataclass
+class RakutenProduct:
+    """楽天商品（アフィリエイト用）"""
+    id: int
+    item_code: str  # 楽天の商品コード
+    name: str
+    price: int
+    image_url: str
+    affiliate_url: str
+    display_order: int = 0
+    is_active: int = 1
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "item_code": self.item_code,
+            "name": self.name,
+            "price": self.price,
+            "price_text": f"¥{self.price:,}",
+            "image_url": self.image_url,
+            "affiliate_url": self.affiliate_url,
+            "display_order": self.display_order,
+            "is_active": self.is_active,
+            "created_at": str(self.created_at) if self.created_at else None,
+            "updated_at": str(self.updated_at) if self.updated_at else None,
         }

@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="canonical" href="https://bsprice.net/shops">
+    <!-- Google Analytics (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-5WL1F00NNC"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-5WL1F00NNC');
+    </script>
+    <meta name="description" content="BSPriceが対応しているトレーディングカードショップの一覧。カードラッシュ、Tier One、フルアヘッドなど。">
+    <title>ショップ一覧 | BSPrice - バトスピ価格比較</title>
+    <!-- OGP -->
+    <meta property="og:title" content="ショップ一覧 | BSPrice - バトスピ価格比較">
+    <meta property="og:description" content="BSPriceが対応しているトレーディングカードショップの一覧。カードラッシュ、Tier One、フルアヘッドなど。">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://bsprice.net/shops">
+    <meta property="og:site_name" content="BSPrice">
+    <meta property="og:locale" content="ja_JP">
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="ショップ一覧 | BSPrice - バトスピ価格比較">
+    <meta name="twitter:description" content="BSPriceが対応しているトレーディングカードショップの一覧。カードラッシュ、Tier One、フルアヘッドなど。">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <!-- ヘッダー -->
+    <header class="site-header">
+        <div class="header-inner">
+            <a href="/" class="site-logo">
+                <div class="logo-icon">BS</div>
+                <div class="logo-text-group">
+                    <span class="logo-text">BSPrice</span>
+                    <span class="logo-sub">バトスピ価格比較</span>
+                </div>
+            </a>
+            <nav class="site-nav">
+                <a href="/">トップ</a>
+                <a href="/ranking">ランキング</a>
+                <a href="/shops" class="active">ショップ一覧</a>
+            </nav>
+            <div id="user-menu" class="user-menu"></div>
+        </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container">
+            <div class="search-section" style="padding-bottom: 10px;">
+                <h1 class="search-title">対応ショップ一覧</h1>
+                <p class="search-subtitle">BSPriceで価格比較できるショップ</p>
+            </div>
+
+            <div id="shops-content" class="shops-content hidden">
+                <div id="shops-list" class="shops-list"></div>
+
+                <div class="shops-note">
+                    <h3>ご注意</h3>
+                    <ul>
+                        <li>価格・在庫は各ショップの情報を定期的に取得しています</li>
+                        <li>実際の価格・在庫は各ショップのサイトでご確認ください</li>
+                        <li>一部のショップでは画像が表示されない場合があります</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>読み込み中...</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- フッター -->
+    <footer class="site-footer">
+        <div class="footer-inner">
+            <div class="footer-links">
+                <div class="footer-section">
+                    <h4>ページ</h4>
+                    <a href="/">トップ</a>
+                    <a href="/ranking">ランキング</a>
+                    <a href="/shops">ショップ一覧</a>
+                </div>
+                <div class="footer-section">
+                    <h4>対応ショップ</h4>
+                    <span>カードラッシュ</span>
+                    <span>Tier One</span>
+                    <span>フルアヘッド</span>
+                    <span>ホビーステーション</span>
+                    <span>バトスキ</span>
+                    <span>遊々亭</span>
+                </div>
+                <div class="footer-section">
+                    <h4>その他</h4>
+                    <a href="/login">ログイン</a>
+                    <a href="/about">このサイトについて</a>
+                    <a href="/privacy">プライバシーポリシー</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 BSPrice - バトスピ価格比較</p>
+                <p class="footer-note">※価格は各ショップの在庫状況により変動します</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="/static/auth.js"></script>
+    <script>
+        // ショップ情報（静的データ）
+        const shopInfo = {
+            'カードラッシュ': {
+                url: 'https://www.cardrush-bs.jp/',
+                description: '大手トレカショップ。在庫豊富で価格も安定。',
+                color: '#e74c3c',
+                features: ['豊富な在庫', '安定した価格', '即日発送対応']
+            },
+            'Tier One': {
+                url: 'https://tier-one.jp/',
+                description: 'バトルスピリッツ専門ショップ。レア・高額カードの取扱いが豊富。',
+                color: '#9b59b6',
+                features: ['バトスピ専門', 'レアカード充実', '美品多数']
+            },
+            'フルアヘッド': {
+                url: 'https://fullahead-tcg.com/',
+                description: 'TCG専門店。幅広いラインナップ。',
+                color: '#3498db',
+                features: ['幅広い品揃え', '手頃な価格', '定期セール']
+            },
+            'ホビーステーション': {
+                url: 'https://hobbystation-single.jp/',
+                description: '全国展開の大手ホビーショップ。店舗受取も可能。',
+                color: '#1abc9c',
+                features: ['全国店舗展開', '店舗受取可', 'ポイント還元']
+            },
+            'バトスキ': {
+                url: 'https://batosuki.shop/',
+                description: 'バトスピ専門のネットショップ。掘り出し物が見つかることも。',
+                color: '#27ae60',
+                features: ['バトスピ専門', '掘り出し物あり', '個人経営']
+            },
+            '遊々亭': {
+                url: 'https://yuyu-tei.jp/',
+                description: '大手トレカ通販サイト。買取も行っている。※現在取得不可',
+                color: '#f39c12',
+                features: ['大手サイト', '買取対応', '※現在取得停止中'],
+                inactive: true
+            },
+            'ドラスタ': {
+                url: 'https://dorasuta.jp/',
+                description: '全国展開のカードショップ。SALE・傷あり特価も取り扱い。',
+                color: '#F97316',
+                features: ['全国店舗展開', 'SALE品あり', '傷あり特価']
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const loadingEl = document.getElementById('loading');
+            const contentEl = document.getElementById('shops-content');
+
+            await loadShopsData();
+
+            loadingEl.classList.add('hidden');
+            contentEl.classList.remove('hidden');
+        });
+
+        async function loadShopsData() {
+            try {
+                const response = await fetch('/api/shops');
+                if (!response.ok) throw new Error('Failed to load shops data');
+                const data = await response.json();
+                renderShops(data.shops);
+            } catch (e) {
+                console.error('Failed to load shops:', e);
+                // APIが失敗しても静的データで表示
+                renderShopsStatic();
+            }
+        }
+
+        function renderShops(shops) {
+            const container = document.getElementById('shops-list');
+
+            container.innerHTML = shops.map(shop => {
+                const info = shopInfo[shop.name] || {};
+                return `
+                    <div class="shop-card ${info.inactive ? 'inactive' : ''}" style="--shop-color: ${info.color || '#666'}">
+                        <div class="shop-header">
+                            <h2 class="shop-name">${escapeHtml(shop.name)}</h2>
+                            ${info.inactive ? '<span class="shop-inactive-badge">取得停止中</span>' : ''}
+                        </div>
+                        <p class="shop-description">${info.description || ''}</p>
+                        <div class="shop-stats">
+                            <div class="shop-stat">
+                                <span class="stat-value">${(shop.price_count || 0).toLocaleString()}</span>
+                                <span class="stat-label">価格データ</span>
+                            </div>
+                        </div>
+                        ${info.features ? `
+                            <div class="shop-features">
+                                ${info.features.map(f => `<span class="feature-tag">${escapeHtml(f)}</span>`).join('')}
+                            </div>
+                        ` : ''}
+                        <a href="${info.url || '#'}" target="_blank" rel="noopener" class="shop-link">
+                            ショップサイトへ
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                <polyline points="15 3 21 3 21 9"></polyline>
+                                <line x1="10" y1="14" x2="21" y2="3"></line>
+                            </svg>
+                        </a>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderShopsStatic() {
+            const container = document.getElementById('shops-list');
+            const shopNames = Object.keys(shopInfo);
+
+            container.innerHTML = shopNames.map(name => {
+                const info = shopInfo[name];
+                return `
+                    <div class="shop-card ${info.inactive ? 'inactive' : ''}" style="--shop-color: ${info.color}">
+                        <div class="shop-header">
+                            <h2 class="shop-name">${escapeHtml(name)}</h2>
+                            ${info.inactive ? '<span class="shop-inactive-badge">取得停止中</span>' : ''}
+                        </div>
+                        <p class="shop-description">${info.description}</p>
+                        <div class="shop-features">
+                            ${info.features.map(f => `<span class="feature-tag">${escapeHtml(f)}</span>`).join('')}
+                        </div>
+                        <a href="${info.url}" target="_blank" rel="noopener" class="shop-link">
+                            ショップサイトへ
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                <polyline points="15 3 21 3 21 9"></polyline>
+                                <line x1="10" y1="14" x2="21" y2="3"></line>
+                            </svg>
+                        </a>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+
+    <style>
+        .shops-content {
+            display: none;
+        }
+
+        .shops-content:not(.hidden) {
+            display: block;
+        }
+
+        .shops-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .shop-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-dark);
+            border-radius: 16px;
+            padding: 24px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+
+        .shop-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--shop-color);
+        }
+
+        .shop-card:hover {
+            border-color: var(--shop-color);
+            transform: translateY(-4px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .shop-card.inactive {
+            opacity: 0.6;
+        }
+
+        .shop-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .shop-name {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin: 0;
+        }
+
+        .shop-inactive-badge {
+            font-size: 0.7rem;
+            background: var(--ruby);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .shop-description {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            line-height: 1.6;
+            margin-bottom: 16px;
+        }
+
+        .shop-stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 16px;
+        }
+
+        .shop-stat {
+            text-align: center;
+        }
+
+        .shop-stat .stat-value {
+            display: block;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--shop-color);
+        }
+
+        .shop-stat .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .shop-features {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .feature-tag {
+            font-size: 0.75rem;
+            background: var(--bg-dark);
+            color: var(--text-secondary);
+            padding: 4px 10px;
+            border-radius: 6px;
+        }
+
+        .shop-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--shop-color);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: opacity 0.2s;
+        }
+
+        .shop-link:hover {
+            opacity: 0.8;
+        }
+
+        .shops-note {
+            background: var(--bg-card);
+            border: 1px solid var(--border-dark);
+            border-radius: 12px;
+            padding: 20px 24px;
+        }
+
+        .shops-note h3 {
+            font-size: 1rem;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+        }
+
+        .shops-note ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .shops-note li {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            padding: 4px 0;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .shops-note li::before {
+            content: '•';
+            position: absolute;
+            left: 0;
+            color: var(--text-muted);
+        }
+
+        @media (max-width: 768px) {
+            .shops-list {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+
+            .shop-card {
+                padding: 18px;
+            }
+
+            .shop-name {
+                font-size: 1.1rem;
+            }
+
+            .shop-description {
+                font-size: 0.85rem;
+            }
+
+            .shop-stats {
+                margin-bottom: 12px;
+            }
+
+            .shop-stat .stat-value {
+                font-size: 1.3rem;
+            }
+
+            .shop-features {
+                gap: 6px;
+            }
+
+            .feature-tag {
+                font-size: 0.7rem;
+                padding: 3px 8px;
+            }
+
+            .shops-note {
+                padding: 16px;
+            }
+
+            .shops-note h3 {
+                font-size: 0.95rem;
+            }
+
+            .shops-note li {
+                font-size: 0.85rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .shop-card {
+                padding: 14px;
+            }
+
+            .shop-name {
+                font-size: 1rem;
+            }
+
+            .shop-inactive-badge {
+                font-size: 0.65rem;
+            }
+        }
+    </style>
+</body>
+</html>

@@ -3,9 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="canonical" href="https://bsprice.net/login">
+    <!-- Google Analytics (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-5WL1F00NNC"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-5WL1F00NNC');
+    </script>
     <meta name="description" content="バトスピ価格比較サイトにログインして、お気に入りカードを保存しましょう。">
     <title>ログイン | BSPrice - バトスピ価格比較</title>
     <link rel="stylesheet" href="/static/style.css">
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2167017279500518"
+         crossorigin="anonymous"></script>
 </head>
 <body>
     <!-- ヘッダー -->
@@ -26,6 +43,11 @@
             <div id="user-menu" class="user-menu"></div>
         </div>
     </header>
+
+    <!-- 広告エリア（ヘッダー下） -->
+    <div class="ad-banner ad-header">
+        <div class="ad-placeholder">広告</div>
+    </div>
 
     <!-- メインコンテンツ -->
     <main class="main-content">
@@ -114,6 +136,11 @@
         </div>
     </main>
 
+    <!-- 広告エリア（フッター上） -->
+    <div class="ad-banner ad-footer">
+        <div class="ad-placeholder">広告</div>
+    </div>
+
     <!-- フッター -->
     <footer class="site-footer">
         <div class="footer-inner">
@@ -137,6 +164,7 @@
                     <h4>その他</h4>
                     <a href="/login">ログイン</a>
                     <a href="/about">このサイトについて</a>
+                    <a href="/privacy">プライバシーポリシー</a>
                 </div>
             </div>
             <div class="footer-bottom">
@@ -182,6 +210,7 @@
                 await Auth.login(username, password);
                 window.location.href = '/';
             } catch (e) {
+                console.error('[Login] エラー:', e);
                 errorEl.textContent = e.message;
             }
         }

@@ -3,9 +3,57 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="canonical" href="https://bsprice.net/">
+    <!-- Google Analytics (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-5WL1F00NNC"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-5WL1F00NNC');
+    </script>
+    <meta name="google-site-verification" content="_bJsQvTmoYzl3SAFI-1Q8b4Kp7A3JwLyTc7Uf05Mr1k">
     <meta name="description" content="バトルスピリッツのカード価格を複数ショップから一括比較。最安値を簡単に見つけられます。">
     <title>バトスピ価格比較 | BSPrice</title>
+    <!-- OGP -->
+    <meta property="og:title" content="バトスピ価格比較 | BSPrice">
+    <meta property="og:description" content="バトルスピリッツのカード価格を複数ショップから一括比較。最安値を簡単に見つけられます。">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://bsprice.net/">
+    <meta property="og:site_name" content="BSPrice">
+    <meta property="og:locale" content="ja_JP">
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="バトスピ価格比較 | BSPrice">
+    <meta name="twitter:description" content="バトルスピリッツのカード価格を複数ショップから一括比較。最安値を簡単に見つけられます。">
+    <!-- 構造化データ (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "BSPrice - バトスピ価格比較",
+        "alternateName": "BSPrice",
+        "url": "https://bsprice.net/",
+        "description": "バトルスピリッツのカード価格を複数ショップから一括比較。最安値を簡単に見つけられます。",
+        "potentialAction": {
+            "@type": "SearchAction",
+            "target": {
+                "@type": "EntryPoint",
+                "urlTemplate": "https://bsprice.net/search?q={search_term_string}"
+            },
+            "query-input": "required name=search_term_string"
+        }
+    }
+    </script>
     <link rel="stylesheet" href="/static/style.css">
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2167017279500518"
+         crossorigin="anonymous"></script>
 </head>
 <body>
     <!-- ヘッダー -->
@@ -39,54 +87,23 @@
             <div class="search-section">
                 <h1 class="search-title">バトルスピリッツ カード価格比較</h1>
                 <p class="search-subtitle">複数ショップの価格を一括検索</p>
-                <div class="search-box">
+                <form id="search-form" action="/search" method="GET" class="search-box">
                     <input
                         type="text"
                         id="keyword"
+                        name="q"
                         placeholder="カード名を入力（例: ジークフリード）"
                         autofocus
                     >
-                    <button id="search-btn">検索</button>
-                </div>
+                    <button type="submit" id="search-btn">検索</button>
+                </form>
                 <!-- 人気キーワード -->
                 <div id="featured-keywords" class="featured-keywords hidden"></div>
             </div>
 
-            <div class="controls">
-                <label>
-                    並び替え:
-                    <select id="sort-select">
-                        <option value="price-asc">価格が安い順</option>
-                        <option value="price-desc">価格が高い順</option>
-                        <option value="site">サイト別</option>
-                    </select>
-                </label>
-                <label>
-                    在庫:
-                    <select id="stock-filter">
-                        <option value="all">すべて</option>
-                        <option value="in-stock">在庫あり</option>
-                        <option value="out-of-stock">売り切れ</option>
-                    </select>
-                </label>
-                <span id="result-count"></span>
-            </div>
-
-            <div id="loading" class="loading hidden">
-                <div class="spinner"></div>
-                <p>検索中...</p>
-            </div>
-
-            <div id="error" class="error hidden"></div>
-
-            <div id="results" class="results"></div>
-
-            <!-- ホーム画面セクション（検索前に表示） -->
+            <!-- ホーム画面セクション -->
             <div id="home" class="home-section">
                 <div class="home-stats" id="home-stats"></div>
-
-                <!-- バッチ実行通知 -->
-                <div id="batch-notification" class="batch-notification hidden"></div>
 
                 <div class="home-grid">
                     <div class="home-card">
@@ -141,6 +158,7 @@
                     <h4>その他</h4>
                     <a href="/login">ログイン</a>
                     <a href="/about">このサイトについて</a>
+                    <a href="/privacy">プライバシーポリシー</a>
                 </div>
             </div>
             <div class="footer-bottom">
