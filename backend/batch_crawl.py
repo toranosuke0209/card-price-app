@@ -50,6 +50,7 @@ SUPPORTED_SHOPS = {
     "hobbystation": "ホビーステーション",
     "batosuki": "バトスキ",
     "fullahead": "フルアヘッド",
+    "dorasuta": "ドラスタ",
 }
 
 
@@ -907,6 +908,178 @@ class FullaheadCrawler(SeleniumScraper, BaseCrawler):
         loop.run_until_complete(super().close())
 
 
+class DorasutaCrawler(SeleniumScraper, BaseCrawler):
+    """ドラスタ巡回クローラー（Selenium使用）"""
+
+    site_name = "ドラスタ"
+    base_url = "https://dorasuta.jp"
+
+    def __init__(self):
+        self._current_page = 0
+
+    def build_search_url(self, keyword: str) -> str:
+        encoded = quote(keyword, encoding='utf-8')
+        return f"{self.base_url}/battlespirits/product-list?kw={encoded}"
+
+    def build_list_url(self, page: int) -> str:
+        # 初回は商品一覧ページ、以降はJavaScriptでページ遷移
+        return f"{self.base_url}/battlespirits/product-list"
+
+    def fetch_page(self, page: int) -> tuple[list[dict], int]:
+        """ページを取得"""
+        import time
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+
+        driver = self._get_driver()
+
+        if page == 1 or self._current_page == 0:
+            # 初回: 商品一覧ページを開く
+            url = self.build_list_url(page)
+            print(f"[{self.site_name}] ページ {page} を取得中: {url}")
+            driver.get(url)
+            time.sleep(4)
+        else:
+            # 2ページ目以降: JavaScriptでページ遷移
+            print(f"[{self.site_name}] ページ {page} を取得中...")
+            try:
+                driver.execute_script(f"$.formSubmit('#form110200', 'search', ['pager', '{page}']);")
+                time.sleep(4)
+            except Exception as e:
+                print(f"[{self.site_name}] ページ遷移エラー: {e}")
+                return [], page
+
+        self._current_page = page
+
+        try:
+            WebDriverWait(driver, 30).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "div.element"))
+            )
+        except:
+            pass
+
+        time.sleep(2)
+
+        html = driver.page_source
+        soup = BeautifulSoup(html, "lxml")
+
+        total_pages = self._parse_total_pages(soup)
+        cards = self._parse_card_list(soup)
+
+        print(f"[{self.site_name}] ページ {page}/{total_pages}: {len(cards)} 件取得")
+
+        return cards, total_pages
+
+    def _parse_total_pages(self, soup: BeautifulSoup) -> int:
+        """ページ数を取得"""
+        try:
+            pager = soup.select("div.pager a.page_num, div.pager div.page_num")
+            max_page = 1
+            for elem in pager:
+                text = elem.get_text(strip=True)
+                if text.isdigit():
+                    max_page = max(max_page, int(text))
+            return max_page
+        except Exception as e:
+            print(f"[{self.site_name}] ページ数取得エラー: {e}")
+            return 1
+
+    def _parse_card_list(self, soup: BeautifulSoup) -> list[dict]:
+        """商品リストをパース"""
+        cards = []
+        elements = soup.select("div.element:has(div.description)")
+
+        for elem in elements:
+            try:
+                card = self._parse_card_item(elem)
+                if card:
+                    cards.append(card)
+            except Exception as e:
+                continue
+
+        return cards
+
+    def _parse_card_item(self, item) -> dict | None:
+        # 商品名とURL
+        name_elem = item.select_one("div.description li.change_hight a")
+        if not name_elem:
+            return None
+
+        name = name_elem.get_text(strip=True)
+        if not name:
+            return None
+
+        url = name_elem.get("href", "")
+        if url and not url.startswith("http"):
+            url = urljoin(self.base_url, url)
+
+        # カード番号を抽出
+        card_no = None
+        card_no_match = re.search(r'([A-Z]{2,3}\d{1,2}-[A-Z]?\d{1,3})', name)
+        if card_no_match:
+            card_no = card_no_match.group(1)
+
+        # 価格を取得
+        price = 0
+        price_elems = item.select("div.description ul li")
+        for li in price_elems:
+            if "円" in li.get_text():
+                price_text = li.get_text(strip=True)
+                price_match = re.search(r'([\d,]+)円', price_text)
+                if price_match:
+                    price = int(price_match.group(1).replace(",", ""))
+                break
+
+        # 在庫を取得
+        stock = 0
+        stock_text = ""
+        soldout = item.select_one("a.condition.soldout, .soldout")
+        if soldout:
+            stock = 0
+            stock_text = "SOLDOUT"
+        else:
+            stock_elem = item.select_one("div.selectbox[data-value]")
+            if stock_elem:
+                stock_val = stock_elem.get("data-value", "0")
+                if stock_val.isdigit():
+                    stock = int(stock_val)
+                    stock_text = f"在庫: {stock}"
+            elif price > 0:
+                stock = 1
+                stock_text = "在庫あり"
+
+        # 画像URL
+        image_url = ""
+        img_elem = item.select_one("div.content img[data-src]")
+        if img_elem:
+            image_url = img_elem.get("data-src", "")
+            if image_url and not image_url.startswith("http"):
+                image_url = urljoin(self.base_url, image_url)
+
+        return {
+            "name": name,
+            "card_no": card_no,
+            "detail_url": url,
+            "price": price,
+            "stock": stock,
+            "stock_text": stock_text,
+            "image_url": image_url,
+        }
+
+    def parse_products(self, soup: BeautifulSoup):
+        return []
+
+    def close(self):
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        loop.run_until_complete(super().close())
+
+
 def get_crawler(shop_key: str) -> BaseCrawler:
     """ショップキーに対応するクローラーを返す"""
     if shop_key == "cardrush":
@@ -919,6 +1092,8 @@ def get_crawler(shop_key: str) -> BaseCrawler:
         return BatosukiCrawler()
     elif shop_key == "fullahead":
         return FullaheadCrawler()
+    elif shop_key == "dorasuta":
+        return DorasutaCrawler()
     else:
         raise ValueError(f"Unknown shop: {shop_key}")
 

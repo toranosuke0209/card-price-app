@@ -310,6 +310,69 @@ mkdir -p /home/ubuntu/project/logs
 
 ---
 
+## 2026-01-30: 認証バグ修正・広告管理機能改善
+
+### 問題と修正
+
+#### 1. ログイン後に401エラーが発生
+**原因**: JWT の `sub` クレームに整数を渡していたが、jose ライブラリは文字列を要求
+**修正**: `main.py` の全ログイン/登録エンドポイントで `data={"sub": str(user.id), ...}` に変更
+
+#### 2. bcrypt/passlib 互換性エラー
+**症状**: `AttributeError: module 'bcrypt' has no attribute '__about__'`
+**原因**: bcrypt 4.1.3 と passlib 1.7.4 の互換性問題
+**修正**: bcrypt を 4.0.1 にダウングレード
+```bash
+cd /home/ubuntu/project/backend && source venv/bin/activate && pip install bcrypt==4.0.1
+```
+
+#### 3. Amazon/楽天商品管理APIが404
+**原因**: サーバーの main.py に GET/POST/DELETE エンドポイントがなく、PUT のみが重複定義されていた
+**修正**: ローカルの正しい main.py をサーバーにアップロード
+
+#### 4. admin.html の重複関数
+**原因**: add_ad_sections.py を複数回実行したため、関数が重複定義されていた
+**修正**: ローカルの正しい admin.html をサーバーにアップロード
+
+### 新機能追加
+
+#### 1. 広告商品の編集機能
+- Amazon商品に「編集」ボタン追加
+- 楽天商品に「編集」ボタン追加
+- 商品名・価格・画像URLを変更可能
+
+#### 2. 管理画面からECサイトへのリンク
+- 商品名クリックでアフィリエイトURLに遷移
+- 商品画像クリックでもアフィリエイトURLに遷移
+
+### サーバー情報更新
+
+CONTEXT.md にサーバー接続情報を記録：
+- **キーペア**: `C:\Users\ykh2435064\Desktop\card-price-app-key.pem`
+- **IP**: `54.64.210.46`
+- **ドメイン**: `bs-price.com`
+
+### アップロードしたファイル
+| ファイル | 説明 |
+|---------|------|
+| `frontend/admin.html` | 編集ボタン・ECリンク追加、重複関数修正 |
+| `backend/main.py` | JWT sub修正、全APIエンドポイント含む |
+| `backend/database.py` | 正しいバージョン |
+| `backend/models.py` | 正しいバージョン |
+| `frontend/auth.js` | 正しいバージョン |
+
+### サーバー再起動コマンド
+```bash
+ssh -i "C:\Users\ykh2435064\Desktop\card-price-app-key.pem" ubuntu@54.64.210.46
+
+# サーバー内で実行
+sudo pkill -f uvicorn
+cd /home/ubuntu/project/backend && source venv/bin/activate
+sudo nohup /home/ubuntu/project/backend/venv/bin/uvicorn main:app --host 0.0.0.0 --port 443 --ssl-keyfile /etc/letsencrypt/live/bsprice.net/privkey.pem --ssl-certfile /etc/letsencrypt/live/bsprice.net/fullchain.pem > /tmp/uvicorn.log 2>&1 &
+```
+
+---
+
 ## 次回作業候補
 
 1. **フルアヘッド価格問題修正**（優先）

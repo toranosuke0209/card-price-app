@@ -6,20 +6,21 @@
 バトルスピリッツのカードを主な対象とする。
 商品の画像・価格・在庫状況を一覧表示。
 
-## 現在の状態（2026/01/25 完成）
+## 現在の状態（2026/01/30 更新）
 
 ### AWS EC2デプロイ状況
 
 **EC2インスタンス情報:**
-- IP: `13.115.248.117`
+- IP: `54.64.210.46`
+- ドメイン: `bs-price.com`
+- キーペア: `C:\Users\ykh2435064\Desktop\card-price-app-key.pem`
 - インスタンスタイプ: t3.medium（2vCPU, 4GB RAM）
 - OS: Ubuntu 24.04 LTS (Noble)
-- Chrome: 144.0.7559.96
-- ChromeDriver: 144.0.7559.96
+- SSL: Let's Encrypt（/etc/letsencrypt/live/bsprice.net/）
 
 **アクセスURL:**
 ```
-http://13.115.248.117:8000
+https://bs-price.com
 ```
 
 **サイト動作状況:**
@@ -71,15 +72,20 @@ options.page_load_strategy = "eager"
 
 ### SSH接続（ローカルPowerShellで実行）
 ```powershell
-cd C:\Users\toraa\Downloads
-ssh -i card-price-app-key.pem ubuntu@13.115.248.117
+# 現在のサーバー情報（2026/01/30更新）
+# キーペア: C:\Users\ykh2435064\Desktop\card-price-app-key.pem
+# IP: 54.64.210.46
+# ドメイン: bs-price.com
+
+ssh -i "C:\Users\ykh2435064\Desktop\card-price-app-key.pem" ubuntu@54.64.210.46
 ```
 
 ### サーバー起動（EC2で実行）
 ```bash
+# HTTPS（Let's Encrypt証明書使用）
 cd ~/project/backend
 source venv/bin/activate
-uvicorn main:app --host 0.0.0.0 --port 8000
+sudo nohup /home/ubuntu/project/backend/venv/bin/uvicorn main:app --host 0.0.0.0 --port 443 --ssl-keyfile /etc/letsencrypt/live/bsprice.net/privkey.pem --ssl-certfile /etc/letsencrypt/live/bsprice.net/fullchain.pem > /tmp/uvicorn.log 2>&1 &
 ```
 
 ### バックグラウンド起動

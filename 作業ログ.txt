@@ -1,0 +1,167 @@
+================================================================================
+BSPrice プロジェクト 作業ログ
+================================================================================
+
+================================================================================
+2026-02-02 (日)
+================================================================================
+
+【人気キーワード価格更新機能の修正】
+
+1. Tier One のセレクタ修正
+   - 修正前: li.item-list-box, div.item-box
+   - 修正後: ul.item-list li (サブセレクタ: p.item-name a, p.price)
+   - ファイル: update_featured_prices.py
+
+2. ホビステ URL修正
+   - 修正前: /product-list?keyword=
+   - 修正後: /bs/product/list?search_word=
+   - ファイル: update_featured_prices.py
+
+3. バトスキ検索機能追加
+   - 新規追加（EUC-JP対応）
+   - ファイル: update_featured_prices.py
+
+--------------------------------------------------------------------------------
+
+【在庫フィルター不具合の修正】
+
+問題: カードラッシュで売切商品（×表示）が「在庫あり」フィルターに表示される
+
+原因: stock_text="×" だが stock=1 のまま保存されていた
+
+対応:
+1. 既存データ修正: UPDATE prices SET stock = 0 WHERE stock_text LIKE "%×%" ...
+   → 19,049件更新
+
+2. 再発防止: database.py の save_price_if_changed() に safeguard 追加
+   - stock_text に ×/売切/SOLD が含まれる場合は自動的に stock=0 に設定
+
+--------------------------------------------------------------------------------
+
+【バトスキ クローラー修正】
+
+問題: バトスキの価格データが異様に少ない（758件 vs 他ショップ26,000件）
+
+原因: batch_crawl.py のセレクタが誤り
+   - 修正前: li[class*='item_list'], li[class*='footer_list']
+     → フッターの推奨商品（各ページ同じ102件）を取得していた
+   - 修正後: li.kr-productlist_list
+     → 実際の商品リスト（ページごとに60件のユニーク商品）を取得
+
+対応:
+1. batch_crawl.py のセレクタを修正（サーバー側で sed 実行）
+2. batch_progress をページ1にリセット
+3. 200ページの再クロール実行
+
+結果:
+   - 修正前: 758件
+   - 修正後: 12,319件（約16倍に増加）
+
+--------------------------------------------------------------------------------
+
+【その他】
+
+- サーバー再起動実施（uvicorn プロセス停止→起動）
+- Tier One 50ページ再クロール実施（一時エラーのリカバリ）
+
+--------------------------------------------------------------------------------
+
+【ドラスタ（ドラゴンスター）クローラー追加】
+
+対象サイト: https://dorasuta.jp/battlespirits
+
+特徴:
+- 403エラーでhttpxアクセス不可 → Selenium使用
+- ページネーションがJavaScript（$.formSubmit）→ Selenium必要
+
+修正ファイル:
+1. batch_crawl.py
+   - SUPPORTED_SHOPS に "dorasuta": "ドラスタ" を追加
+   - DorasutaCrawler クラスを新規追加（Selenium使用）
+   - get_crawler() に dorasuta 対応を追加
+
+2. database.py
+   - init_shops() に ("ドラスタ", "https://dorasuta.jp/") を追加
+
+3. update_featured_prices.py
+   - search_dorasuta_selenium() 関数を新規追加
+   - SELENIUM_SHOPS に "ドラスタ" を追加
+
+セレクタ:
+- 商品コンテナ: div.element:has(div.description)
+- 商品名: div.description li.change_hight a
+- 価格: div.description ul li（"円"を含むli）
+- 在庫あり: div.selectbox[data-value]
+- 売切れ: a.condition.soldout
+- 画像: div.content img[data-src]
+
+実行方式: ローカルクロール + EC2インポート（遊々亭と同じ方式）
+※ CloudflareのBot対策が厳しいため、サーバー直接クロールは不可
+
+ローカルでの実行手順:
+1. クローラー実行（ブラウザが開く）:
+   cd C:\Users\ykh2435064\Desktop\project\local
+   python crawl_dorasuta.py
+
+2. Cloudflareのチェックボックスをクリック（1回だけ）
+
+3. 自動でシリーズを巡回、JSONに保存
+
+4. EC2にアップロード＆インポート:
+   crawl_and_upload_dorasuta.bat をダブルクリック
+
+作成ファイル:
+- local/crawl_dorasuta.py       # ローカルクローラー（Selenium）
+- local/import_dorasuta.py      # EC2インポートスクリプト
+- local/crawl_and_upload_dorasuta.bat  # 一括実行バッチ
+
+--------------------------------------------------------------------------------
+
+【ドラスタ クローラー機能追加】
+
+1. バッチ処理・進捗管理
+   - 50シリーズずつ処理（BATCH_SIZE=50）
+   - 進捗ファイル（dorasuta_progress.txt）で再開可能
+   - オプション: --status, --reset, --resume シリーズID:ページ番号
+
+2. Cloudflareタイムアウト時の改善
+   - タイムアウト時は次に進まず停止
+   - 途中結果を _partial.json として保存
+
+3. SALE・傷あり特価ページ対応
+   - --special オプションで特価ページをクロール
+   - SALE: https://dorasuta.jp/battlespirits/product-list?cocd=2
+   - 傷あり特価: https://dorasuta.jp/battlespirits/product-list?cid=75&cocd=3
+   - condition フィールドで状態を区別
+   - import時にstock_textに【SALE】【傷あり特価】を付与
+
+デスクトップショートカット:
+- DorasutaCrawl.lnk      # 通常クロール（50シリーズずつ）
+- DorasutaSpecial.lnk    # SALE・傷あり特価クロール
+
+本日のクロール結果:
+- 通常シリーズ: 87シリーズ完了、4,990件インポート（新規4,765件）
+- 特価ページ: SALE 3,512件 + 傷あり特価 1,058件 = 4,570件
+- SALEと傷あり特価の重複: 0件
+
+残りシリーズ: 進捗ファイルで管理中（次回実行で続きから）
+
+--------------------------------------------------------------------------------
+
+【favicon設定】
+
+1. favicon.ioでfavicon生成（BSロゴ）
+
+2. 追加ファイル（frontend/）:
+   - favicon.ico
+   - favicon-16x16.png, favicon-32x32.png
+   - apple-touch-icon.png
+   - android-chrome-192x192.png, android-chrome-512x512.png
+   - site.webmanifest
+
+3. 全HTMLファイル（9ファイル）にlink追加
+
+4. EC2にデプロイ完了
+
+================================================================================
