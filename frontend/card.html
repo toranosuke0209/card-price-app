@@ -52,6 +52,7 @@
     }
     </script>
     <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2167017279500518"
          crossorigin="anonymous"></script>
     <style>
@@ -257,6 +258,25 @@
             font-size: 0.75rem;
             margin-left: 8px;
         }
+        .price-history-section {
+            margin-top: 32px;
+        }
+        .price-chart-container {
+            background: var(--background-secondary);
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 16px;
+        }
+        .price-chart-container canvas {
+            max-height: 300px;
+        }
+        .no-history-message {
+            text-align: center;
+            color: var(--text-secondary);
+            padding: 40px 20px;
+            background: var(--background-secondary);
+            border-radius: 8px;
+        }
         @media (max-width: 768px) {
             .card-header {
                 flex-direction: column;
@@ -366,6 +386,17 @@
                     <tbody id="price-table-body">
                     </tbody>
                 </table>
+
+                <!-- 価格推移グラフ -->
+                <div id="price-history-section" class="price-history-section">
+                    <h2 class="section-title">価格推移（過去30日）</h2>
+                    <div id="price-chart-container" class="price-chart-container">
+                        <canvas id="price-chart"></canvas>
+                    </div>
+                    <div id="no-history-message" class="no-history-message hidden">
+                        まだ価格履歴がありません。データは毎日自動で記録されます。
+                    </div>
+                </div>
 
                 <!-- 関連カード（リバイバル/旧版） -->
                 <div id="related-cards-section" class="related-cards-section hidden">
@@ -574,9 +605,92 @@
             }
         }
 
+        // 価格履歴グラフを読み込む
+        async function loadPriceHistory() {
+            try {
+                const response = await fetch(`/api/card/${cardId}/history?days=30`);
+                if (!response.ok) return;
+
+                const data = await response.json();
+                const chartContainer = document.getElementById('price-chart-container');
+                const noHistoryMessage = document.getElementById('no-history-message');
+
+                if (!data.history || data.history.length === 0) {
+                    chartContainer.classList.add('hidden');
+                    noHistoryMessage.classList.remove('hidden');
+                    return;
+                }
+
+                // ショップごとにデータを整理
+                const shopData = {};
+                const allDates = new Set();
+
+                data.history.forEach(item => {
+                    if (!shopData[item.shop_name]) {
+                        shopData[item.shop_name] = {};
+                    }
+                    shopData[item.shop_name][item.date] = item.price;
+                    allDates.add(item.date);
+                });
+
+                const sortedDates = Array.from(allDates).sort();
+                const colors = [
+                    '#3b82f6', '#ef4444', '#22c55e', '#f59e0b',
+                    '#8b5cf6', '#ec4899', '#06b6d4'
+                ];
+
+                const datasets = Object.keys(shopData).map((shopName, index) => ({
+                    label: shopName,
+                    data: sortedDates.map(date => shopData[shopName][date] || null),
+                    borderColor: colors[index % colors.length],
+                    backgroundColor: colors[index % colors.length] + '20',
+                    tension: 0.3,
+                    fill: false,
+                    spanGaps: true
+                }));
+
+                new Chart(document.getElementById('price-chart'), {
+                    type: 'line',
+                    data: {
+                        labels: sortedDates.map(d => {
+                            const date = new Date(d);
+                            return `${date.getMonth() + 1}/${date.getDate()}`;
+                        }),
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { color: '#9ca3af' }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                ticks: { color: '#9ca3af' },
+                                grid: { color: '#374151' }
+                            },
+                            y: {
+                                ticks: {
+                                    color: '#9ca3af',
+                                    callback: val => val.toLocaleString() + '円'
+                                },
+                                grid: { color: '#374151' }
+                            }
+                        }
+                    }
+                });
+            } catch (e) {
+                console.error('Failed to load price history:', e);
+            }
+        }
+
         // 初期化
         if (cardId && !isNaN(cardId)) {
             loadCardDetail();
+            loadPriceHistory();
         } else {
             loadingEl.classList.add('hidden');
             errorEl.textContent = '無効なカードIDです';

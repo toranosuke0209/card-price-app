@@ -770,6 +770,8 @@ def save_price_if_changed(card_id: int, shop_id: int, price: int, stock: int,
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (card_id, shop_id, price, stock, stock_text, url, image_url))
         conn.commit()
+        # 価格履歴を保存
+        save_to_price_history(card_id, shop_id, price)
         return cursor.lastrowid
 
 
@@ -2743,3 +2745,69 @@ if __name__ == "__main__":
     init_shops()
     print("\nDatabase stats:")
     print(get_database_stats())
+
+
+# =============================================================================
+# v10: 価格履歴テーブル
+# =============================================================================
+
+def migrate_v10_price_history():
+    """v10: 価格履歴テーブル追加"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS price_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                card_id INTEGER NOT NULL,
+                shop_id INTEGER NOT NULL,
+                price INTEGER NOT NULL,
+                recorded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (card_id) REFERENCES cards(id),
+                FOREIGN KEY (shop_id) REFERENCES shops(id)
+            )
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_price_history_card_shop 
+            ON price_history(card_id, shop_id, recorded_at)
+        """)
+        conn.commit()
+        print("v10 migration: price_history table created")
+
+
+def save_to_price_history(card_id: int, shop_id: int, price: int):
+    """価格履歴を保存（1日1レコードに制限）"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id FROM price_history
+            WHERE card_id = ? AND shop_id = ? AND DATE(recorded_at) = DATE('now')
+        """, (card_id, shop_id))
+        if cursor.fetchone():
+            cursor.execute("""
+                UPDATE price_history SET price = ?, recorded_at = CURRENT_TIMESTAMP
+                WHERE card_id = ? AND shop_id = ? AND DATE(recorded_at) = DATE('now')
+            """, (price, card_id, shop_id))
+        else:
+            cursor.execute("""
+                INSERT INTO price_history (card_id, shop_id, price)
+                VALUES (?, ?, ?)
+            """, (card_id, shop_id, price))
+        conn.commit()
+
+
+def get_price_history(card_id: int, days: int = 30) -> list[dict]:
+    """カードの価格履歴を取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT 
+                DATE(ph.recorded_at) as date,
+                s.name as shop_name,
+                ph.price
+            FROM price_history ph
+            JOIN shops s ON ph.shop_id = s.id
+            WHERE ph.card_id = ?
+              AND ph.recorded_at >= datetime('now', ?)
+            ORDER BY ph.recorded_at ASC
+        """, (card_id, f'-{days} days'))
+        return [dict(row) for row in cursor.fetchall()]

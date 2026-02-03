@@ -134,6 +134,8 @@ from database import (
     update_notification_settings,
     # X投稿キュー関連
     migrate_v9_x_post_queue,
+    migrate_v10_price_history,
+    get_price_history,
     get_pending_x_posts,
     get_all_x_posts,
     mark_x_post_as_posted,
@@ -171,6 +173,7 @@ async def startup():
     migrate_v5_amazon_products()  # v5 Amazon商品マイグレーション実行
     migrate_v8_notifications()  # v8通知機能マイグレーション実行
     migrate_v9_x_post_queue()  # v9 X投稿キューマイグレーション実行
+    migrate_v10_price_history()  # v10 価格履歴テーブル X投稿キューマイグレーション実行
     init_shops()
 
 
@@ -1615,3 +1618,14 @@ async def remove_x_post(
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+# =============================================================================
+# 価格履歴API
+# =============================================================================
+
+@app.get("/api/card/{card_id}/history")
+async def get_card_price_history(card_id: int, days: int = 30):
+    """カードの価格履歴を取得"""
+    history = get_price_history(card_id, days)
+    return {"card_id": card_id, "days": days, "history": history}
