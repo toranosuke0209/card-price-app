@@ -89,7 +89,7 @@ from database import (
     get_admin_stats,
     get_card_by_id,
     get_card_all_prices,
-    get_card_price_history,
+    get_price_history,
     get_unified_card_prices,
     get_related_cards,
     get_card_groups,
@@ -484,7 +484,7 @@ async def get_card_detail(card_id: int):
     prices = unified['prices']
 
     # 価格履歴を取得（関連カード全ての価格履歴を統合）
-    price_history = get_card_price_history(card_id, days=30)
+    price_history = get_price_history(card_id, days=30)
 
     # 関連カード（リバイバル/旧版）を取得
     related_cards = get_related_cards(card_id, unified.get('base_name'))
@@ -1625,7 +1625,7 @@ if __name__ == "__main__":
 # =============================================================================
 
 @app.get("/api/card/{card_id}/history")
-async def get_card_price_history(card_id: int, days: int = 30):
+async def api_price_history(card_id: int, days: int = 30):
     """カードの価格履歴を取得"""
     history = get_price_history(card_id, days)
     return {"card_id": card_id, "days": days, "history": history}
