@@ -339,6 +339,21 @@ async function updateUserMenu() {
 
         if (user) {
             userMenuEl.innerHTML = `
+                <div class="notification-bell" id="notification-bell">
+                    <button class="bell-btn" onclick="toggleNotifications(event)">
+                        <span class="bell-icon">&#128276;</span>
+                        <span class="notification-badge hidden" id="notification-badge">0</span>
+                    </button>
+                    <div class="notification-dropdown hidden" id="notification-dropdown">
+                        <div class="notification-header">
+                            <span>通知</span>
+                            <button class="mark-all-read" onclick="markAllNotificationsRead()">全て既読</button>
+                        </div>
+                        <div class="notification-list" id="notification-list">
+                            <div class="notification-loading">読み込み中...</div>
+                        </div>
+                    </div>
+                </div>
                 <div class="user-menu-dropdown">
                     <button class="user-menu-btn">
                         <span class="user-icon">&#128100;</span>
@@ -360,11 +375,21 @@ async function updateUserMenu() {
                 btn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     content.classList.toggle('show');
+                    // 通知ドロップダウンを閉じる
+                    document.getElementById('notification-dropdown')?.classList.add('hidden');
                 });
-                document.addEventListener('click', () => {
-                    content.classList.remove('show');
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('.user-menu-dropdown')) {
+                        content.classList.remove('show');
+                    }
+                    if (!e.target.closest('.notification-bell')) {
+                        document.getElementById('notification-dropdown')?.classList.add('hidden');
+                    }
                 });
             }
+
+            // 通知数を取得
+            updateNotificationCount();
         } else {
             // トークンが無効な場合
             showLoginButton(userMenuEl);
@@ -372,6 +397,139 @@ async function updateUserMenu() {
     } else {
         showLoginButton(userMenuEl);
     }
+}
+
+/**
+ * 通知数を更新
+ */
+async function updateNotificationCount() {
+    try {
+        const response = await fetch('/api/notifications/count', {
+            headers: Auth.getAuthHeaders()
+        });
+        if (response.ok) {
+            const data = await response.json();
+            const badge = document.getElementById('notification-badge');
+            if (badge) {
+                if (data.unread_count > 0) {
+                    badge.textContent = data.unread_count > 99 ? '99+' : data.unread_count;
+                    badge.classList.remove('hidden');
+                } else {
+                    badge.classList.add('hidden');
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Failed to fetch notification count:', e);
+    }
+}
+
+/**
+ * 通知ドロップダウンを開閉
+ */
+function toggleNotifications(e) {
+    e.stopPropagation();
+    const dropdown = document.getElementById('notification-dropdown');
+    const userContent = document.querySelector('.user-menu-content');
+
+    if (dropdown.classList.contains('hidden')) {
+        dropdown.classList.remove('hidden');
+        userContent?.classList.remove('show');
+        loadNotifications();
+    } else {
+        dropdown.classList.add('hidden');
+    }
+}
+
+/**
+ * 通知一覧を読み込み
+ */
+async function loadNotifications() {
+    const listEl = document.getElementById('notification-list');
+    if (!listEl) return;
+
+    try {
+        const response = await fetch('/api/notifications?limit=20', {
+            headers: Auth.getAuthHeaders()
+        });
+        if (!response.ok) throw new Error('Failed to load notifications');
+
+        const data = await response.json();
+        if (data.notifications.length === 0) {
+            listEl.innerHTML = '<div class="notification-empty">通知はありません</div>';
+            return;
+        }
+
+        listEl.innerHTML = data.notifications.map(n => `
+            <div class="notification-item ${n.is_read ? 'read' : 'unread'}" data-id="${n.id}" onclick="handleNotificationClick(${n.id}, ${n.card_id || 'null'})">
+                <div class="notification-title">${escapeHtml(n.title)}</div>
+                <div class="notification-message">${escapeHtml(n.message)}</div>
+                <div class="notification-time">${formatNotificationTime(n.created_at)}</div>
+            </div>
+        `).join('');
+    } catch (e) {
+        console.error('Failed to load notifications:', e);
+        listEl.innerHTML = '<div class="notification-error">読み込みに失敗しました</div>';
+    }
+}
+
+/**
+ * 通知クリック処理
+ */
+async function handleNotificationClick(notificationId, cardId) {
+    // 既読にする
+    try {
+        await fetch(`/api/notifications/${notificationId}/read`, {
+            method: 'POST',
+            headers: Auth.getAuthHeaders()
+        });
+        updateNotificationCount();
+    } catch (e) {
+        console.error('Failed to mark notification as read:', e);
+    }
+
+    // カードページに遷移
+    if (cardId) {
+        window.location.href = `/card/${cardId}`;
+    }
+}
+
+/**
+ * 全通知を既読にする
+ */
+async function markAllNotificationsRead() {
+    try {
+        await fetch('/api/notifications/read-all', {
+            method: 'POST',
+            headers: Auth.getAuthHeaders()
+        });
+        updateNotificationCount();
+        // 通知リストを更新
+        document.querySelectorAll('.notification-item.unread').forEach(el => {
+            el.classList.remove('unread');
+            el.classList.add('read');
+        });
+    } catch (e) {
+        console.error('Failed to mark all notifications as read:', e);
+    }
+}
+
+/**
+ * 通知時間をフォーマット
+ */
+function formatNotificationTime(dateStr) {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = now - date;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return 'たった今';
+    if (minutes < 60) return `${minutes}分前`;
+    if (hours < 24) return `${hours}時間前`;
+    if (days < 7) return `${days}日前`;
+    return date.toLocaleDateString('ja-JP');
 }
 
 function showLoginButton(el) {

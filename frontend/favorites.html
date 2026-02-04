@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="canonical" href="https://bsprice.net/favorites">
+    <!-- Google Analytics (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-5WL1F00NNC"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-5WL1F00NNC');
+    </script>
+    <meta name="description" content="お気に入りカードの価格一覧。登録したカードの最新価格をまとめてチェック。">
+    <title>お気に入り | BSPrice - バトスピ価格比較</title>
+    <!-- OGP -->
+    <meta property="og:title" content="お気に入り | BSPrice - バトスピ価格比較">
+    <meta property="og:description" content="お気に入りカードの価格一覧。登録したカードの最新価格をまとめてチェック。">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://bsprice.net/favorites">
+    <meta property="og:site_name" content="BSPrice">
+    <meta property="og:locale" content="ja_JP">
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="お気に入り | BSPrice - バトスピ価格比較">
+    <meta name="twitter:description" content="お気に入りカードの価格一覧。登録したカードの最新価格をまとめてチェック。">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <!-- ヘッダー -->
+    <header class="site-header">
+        <div class="header-inner">
+            <a href="/" class="site-logo">
+                <div class="logo-icon">BS</div>
+                <div class="logo-text-group">
+                    <span class="logo-text">BSPrice</span>
+                    <span class="logo-sub">バトスピ価格比較</span>
+                </div>
+            </a>
+            <nav class="site-nav">
+                <a href="/">トップ</a>
+                <a href="/ranking">ランキング</a>
+                <a href="/shops">ショップ一覧</a>
+            </nav>
+            <div id="user-menu" class="user-menu"></div>
+        </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container">
+            <div class="search-section" style="padding-bottom: 10px;">
+                <h1 class="search-title">お気に入り</h1>
+                <p class="search-subtitle">登録したカードの価格一覧</p>
+            </div>
+
+            <!-- ログイン必要メッセージ -->
+            <div id="login-required" class="login-required hidden">
+                <div class="login-required-icon">&#9733;</div>
+                <h2>ログインが必要です</h2>
+                <p>お気に入り機能を利用するにはログインしてください</p>
+                <a href="/login" class="btn-primary">ログイン</a>
+            </div>
+
+            <!-- お気に入りリスト -->
+            <div id="favorites-content" class="favorites-content hidden">
+                <div id="favorites-summary" class="favorites-summary"></div>
+                <div id="favorites-list" class="favorites-list"></div>
+            </div>
+
+            <!-- 空の状態 -->
+            <div id="empty-state" class="empty-state hidden">
+                <div class="empty-icon">&#9733;</div>
+                <h2>お気に入りがありません</h2>
+                <p>カード詳細ページや検索結果から、気になるカードをお気に入りに追加しましょう</p>
+                <a href="/" class="btn-primary">カードを探す</a>
+            </div>
+
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>読み込み中...</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- フッター -->
+    <footer class="site-footer">
+        <div class="footer-inner">
+            <div class="footer-links">
+                <div class="footer-section">
+                    <h4>ページ</h4>
+                    <a href="/">トップ</a>
+                    <a href="/ranking">ランキング</a>
+                    <a href="/shops">ショップ一覧</a>
+                </div>
+                <div class="footer-section">
+                    <h4>対応ショップ</h4>
+                    <span>カードラッシュ</span>
+                    <span>Tier One</span>
+                    <span>フルアヘッド</span>
+                    <span>ホビーステーション</span>
+                    <span>バトスキ</span>
+                    <span>遊々亭</span>
+                </div>
+                <div class="footer-section">
+                    <h4>その他</h4>
+                    <a href="/login">ログイン</a>
+                    <a href="/about">このサイトについて</a>
+                    <a href="/privacy">プライバシーポリシー</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 BSPrice - バトスピ価格比較</p>
+                <p class="footer-note">※価格は各ショップの在庫状況により変動します</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="/static/auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const loadingEl = document.getElementById('loading');
+            const loginRequiredEl = document.getElementById('login-required');
+            const favoritesContentEl = document.getElementById('favorites-content');
+            const emptyStateEl = document.getElementById('empty-state');
+
+            // ログインチェック
+            if (!Auth.isLoggedIn()) {
+                loadingEl.classList.add('hidden');
+                loginRequiredEl.classList.remove('hidden');
+                return;
+            }
+
+            // お気に入りデータを取得
+            try {
+                const response = await fetch('/api/favorites', {
+                    headers: {
+                        'Authorization': `Bearer ${Auth.getToken()}`
+                    }
+                });
+
+                if (response.status === 401) {
+                    Auth.logout();
+                    loadingEl.classList.add('hidden');
+                    loginRequiredEl.classList.remove('hidden');
+                    return;
+                }
+
+                if (!response.ok) throw new Error('Failed to load favorites');
+
+                const data = await response.json();
+                loadingEl.classList.add('hidden');
+
+                if (!data.favorites || data.favorites.length === 0) {
+                    emptyStateEl.classList.remove('hidden');
+                    return;
+                }
+
+                renderFavorites(data.favorites);
+                favoritesContentEl.classList.remove('hidden');
+
+            } catch (e) {
+                console.error('Failed to load favorites:', e);
+                loadingEl.classList.add('hidden');
+                emptyStateEl.classList.remove('hidden');
+            }
+        });
+
+        function renderFavorites(favorites) {
+            const summaryEl = document.getElementById('favorites-summary');
+            const listEl = document.getElementById('favorites-list');
+
+            // サマリー
+            const totalCards = favorites.length;
+            const inStockCards = favorites.filter(f => f.min_price !== null).length;
+            summaryEl.innerHTML = `
+                <div class="summary-item">
+                    <span class="summary-label">登録カード</span>
+                    <span class="summary-value">${totalCards}枚</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">在庫あり</span>
+                    <span class="summary-value">${inStockCards}枚</span>
+                </div>
+            `;
+
+            // カードリスト
+            listEl.innerHTML = favorites.map(card => {
+                const hasStock = card.min_price !== null;
+                const priceDisplay = hasStock
+                    ? `<span class="price">${card.min_price.toLocaleString()}円</span>` +
+                      (card.min_price !== card.max_price ? `<span class="price-range">〜 ${card.max_price.toLocaleString()}円</span>` : '')
+                    : '<span class="no-stock">在庫なし</span>';
+
+                const shopCountDisplay = hasStock
+                    ? `<span class="shop-count">${card.shop_count}店舗</span>`
+                    : '';
+
+                const imageUrl = card.image_url
+                    ? (card.image_url.includes('hobbystation')
+                        ? `/api/image-proxy?url=${encodeURIComponent(card.image_url)}`
+                        : card.image_url)
+                    : '/static/no-image.png';
+
+                return `
+                    <div class="favorite-card" data-card-id="${card.card_id}">
+                        <a href="/card/${card.card_id}" class="card-link">
+                            <div class="card-image">
+                                <img src="${imageUrl}" alt="${escapeHtml(card.card_name)}" loading="lazy" onerror="this.src='/static/no-image.png'">
+                            </div>
+                            <div class="card-info">
+                                <div class="card-name">${escapeHtml(card.card_name)}</div>
+                                ${card.card_no ? `<div class="card-number">${escapeHtml(card.card_no)}</div>` : ''}
+                                <div class="card-price">
+                                    ${priceDisplay}
+                                    ${shopCountDisplay}
+                                </div>
+                            </div>
+                        </a>
+                        <button class="btn-remove" onclick="removeFavorite(${card.card_id})" title="お気に入りから削除">
+                            <span>&#10005;</span>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function removeFavorite(cardId) {
+            if (!confirm('このカードをお気に入りから削除しますか？')) return;
+
+            try {
+                const response = await fetch(`/api/favorites/${cardId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${Auth.getToken()}`
+                    }
+                });
+
+                if (!response.ok) throw new Error('Failed to remove favorite');
+
+                // カードを画面から削除
+                const cardEl = document.querySelector(`.favorite-card[data-card-id="${cardId}"]`);
+                if (cardEl) {
+                    cardEl.style.animation = 'fadeOut 0.3s ease';
+                    setTimeout(() => {
+                        cardEl.remove();
+                        // 残りのカードをチェック
+                        const remaining = document.querySelectorAll('.favorite-card');
+                        if (remaining.length === 0) {
+                            document.getElementById('favorites-content').classList.add('hidden');
+                            document.getElementById('empty-state').classList.remove('hidden');
+                        } else {
+                            // サマリー更新
+                            updateSummary();
+                        }
+                    }, 300);
+                }
+            } catch (e) {
+                console.error('Failed to remove favorite:', e);
+                alert('削除に失敗しました');
+            }
+        }
+
+        function updateSummary() {
+            const cards = document.querySelectorAll('.favorite-card');
+            const inStock = document.querySelectorAll('.favorite-card .price').length;
+            const summaryEl = document.getElementById('favorites-summary');
+            summaryEl.innerHTML = `
+                <div class="summary-item">
+                    <span class="summary-label">登録カード</span>
+                    <span class="summary-value">${cards.length}枚</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">在庫あり</span>
+                    <span class="summary-value">${inStock}枚</span>
+                </div>
+            `;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+
+    <style>
+        .login-required,
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            background: var(--bg-card);
+            border-radius: 16px;
+            border: 1px solid var(--border-dark);
+        }
+
+        .login-required-icon,
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .login-required h2,
+        .empty-state h2 {
+            font-size: 1.3rem;
+            margin-bottom: 12px;
+            color: var(--text-primary);
+        }
+
+        .login-required p,
+        .empty-state p {
+            color: var(--text-muted);
+            margin-bottom: 24px;
+        }
+
+        .btn-primary {
+            display: inline-block;
+            padding: 12px 32px;
+            background: linear-gradient(135deg, var(--sapphire) 0%, var(--amethyst) 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .favorites-summary {
+            display: flex;
+            gap: 24px;
+            margin-bottom: 24px;
+            padding: 16px 20px;
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid var(--border-dark);
+        }
+
+        .summary-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .summary-label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .summary-value {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .favorites-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 16px;
+        }
+
+        .favorite-card {
+            display: flex;
+            background: var(--bg-card);
+            border: 1px solid var(--border-dark);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .favorite-card:hover {
+            border-color: var(--sapphire);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .favorite-card .card-link {
+            display: flex;
+            flex: 1;
+            text-decoration: none;
+            color: inherit;
+            padding: 12px;
+            gap: 12px;
+        }
+
+        .favorite-card .card-image {
+            width: 80px;
+            height: 112px;
+            flex-shrink: 0;
+            border-radius: 6px;
+            overflow: hidden;
+            background: var(--bg-dark);
+        }
+
+        .favorite-card .card-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .favorite-card .card-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 0;
+        }
+
+        .favorite-card .card-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: var(--text-primary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+
+        .favorite-card .card-number {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .favorite-card .card-price {
+            margin-top: auto;
+            display: flex;
+            align-items: baseline;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .favorite-card .price {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--ruby);
+        }
+
+        .favorite-card .price-range {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .favorite-card .no-stock {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            background: var(--bg-dark);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .favorite-card .shop-count {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            background: var(--bg-dark);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .favorite-card .btn-remove {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 28px;
+            height: 28px;
+            border: none;
+            background: rgba(0, 0, 0, 0.5);
+            color: var(--text-muted);
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            opacity: 0;
+            transition: all 0.2s;
+        }
+
+        .favorite-card:hover .btn-remove {
+            opacity: 1;
+        }
+
+        .favorite-card .btn-remove:hover {
+            background: var(--ruby);
+            color: white;
+        }
+
+        @keyframes fadeOut {
+            from { opacity: 1; transform: scale(1); }
+            to { opacity: 0; transform: scale(0.95); }
+        }
+
+        @media (max-width: 768px) {
+            .favorites-summary {
+                gap: 16px;
+            }
+
+            .favorites-list {
+                grid-template-columns: 1fr;
+            }
+
+            .favorite-card .btn-remove {
+                opacity: 1;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .favorite-card .card-image {
+                width: 64px;
+                height: 90px;
+            }
+
+            .favorite-card .card-name {
+                font-size: 0.9rem;
+            }
+
+            .favorite-card .price {
+                font-size: 1rem;
+            }
+        }
+    </style>
+</body>
+</html>

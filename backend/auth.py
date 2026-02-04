@@ -108,7 +108,7 @@ def verify_token(token: str) -> Optional[TokenData]:
     """トークンを検証"""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: int = payload.get("sub")
+        user_id: int = int(payload.get("sub"))
         username: str = payload.get("username")
         if user_id is None:
             return None

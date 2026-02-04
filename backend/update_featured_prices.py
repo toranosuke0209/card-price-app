@@ -479,99 +479,6 @@ def search_hobbystation_selenium(keyword: str) -> list[dict]:
     return results
 
 
-def search_dorasuta_selenium(keyword: str) -> list[dict]:
-    """ドラスタで検索（Selenium）"""
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.support.ui import WebDriverWait
-    from selenium.webdriver.support import expected_conditions as EC
-    from urllib.parse import quote
-
-    results = []
-    try:
-        driver = get_selenium_driver()
-        encoded_kw = quote(keyword, encoding='utf-8')
-        url = f"https://dorasuta.jp/battlespirits/product-list?kw={encoded_kw}"
-        driver.get(url)
-        time.sleep(3)
-
-        try:
-            WebDriverWait(driver, 15).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "div.element"))
-            )
-        except:
-            pass
-
-        soup = BeautifulSoup(driver.page_source, "lxml")
-
-        # 商品リストを取得
-        items = soup.select("div.element:has(div.description)")
-
-        for item in items[:20]:
-            try:
-                # 商品名とURL
-                name_elem = item.select_one("div.description li.change_hight a")
-                if not name_elem:
-                    continue
-
-                name = name_elem.get_text(strip=True)
-                detail_url = name_elem.get("href", "")
-
-                if not name or len(name) < 3:
-                    continue
-
-                if detail_url and not detail_url.startswith("http"):
-                    detail_url = "https://dorasuta.jp" + detail_url
-
-                # 価格
-                price = 0
-                price_elems = item.select("div.description ul li")
-                for li in price_elems:
-                    if "円" in li.get_text():
-                        match = re.search(r"([\d,]+)円", li.get_text())
-                        if match:
-                            price = int(match.group(1).replace(",", ""))
-                        break
-
-                # 在庫
-                stock = 1
-                stock_text = "在庫あり"
-                soldout = item.select_one("a.condition.soldout, .soldout")
-                if soldout:
-                    stock = 0
-                    stock_text = "SOLDOUT"
-                else:
-                    stock_elem = item.select_one("div.selectbox[data-value]")
-                    if stock_elem:
-                        stock_val = stock_elem.get("data-value", "0")
-                        if stock_val.isdigit():
-                            stock = int(stock_val)
-                            stock_text = f"在庫: {stock}"
-
-                # 画像
-                img_elem = item.select_one("div.content img[data-src]")
-                image_url = ""
-                if img_elem:
-                    image_url = img_elem.get("data-src", "")
-                    if image_url and not image_url.startswith("http"):
-                        image_url = "https://dorasuta.jp" + image_url
-
-                results.append({
-                    "name": name,
-                    "price": price,
-                    "stock": stock,
-                    "stock_text": stock_text,
-                    "url": detail_url,
-                    "image_url": image_url,
-                })
-            except Exception:
-                continue
-
-    except Exception as e:
-        log(f"  ドラスタ検索エラー: {e}")
-
-    return results
-
-
 # =============================================================================
 # メイン処理
 # =============================================================================
@@ -586,7 +493,6 @@ HTTPX_SHOPS = {
 SELENIUM_SHOPS = {
     "カードラッシュ": search_cardrush_selenium,
     "ホビーステーション": search_hobbystation_selenium,
-    "ドラスタ": search_dorasuta_selenium,
 }
 
 
