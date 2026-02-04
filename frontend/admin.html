@@ -558,6 +558,7 @@
                     <div class="batch-shop-stats">
                         <span class="batch-stat">${log.cards_total.toLocaleString()}件取得</span>
                         <span class="batch-stat">${log.cards_new.toLocaleString()}件新規</span>
+                        <span class="batch-stat">${(log.cards_updated || 0).toLocaleString()}件更新</span>
                         <span class="batch-time">${formatDateJST(log.finished_at)}</span>
                     </div>
                     <div class="batch-status-badge ${log.status}">${log.status === 'success' ? '成功' : 'エラー'}</div>

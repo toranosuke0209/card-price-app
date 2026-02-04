@@ -1478,16 +1478,16 @@ def update_card_price_fetch_time(card_id: int):
 
 def save_batch_log(batch_type: str, shop_name: str, status: str,
                    pages_processed: int = 0, cards_total: int = 0,
-                   cards_new: int = 0, message: str = None,
+                   cards_new: int = 0, cards_updated: int = 0, message: str = None,
                    started_at: str = None) -> int:
     """バッチ実行ログを保存"""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO batch_logs
-            (batch_type, shop_name, status, pages_processed, cards_total, cards_new, message, started_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (batch_type, shop_name, status, pages_processed, cards_total, cards_new, message, started_at))
+            (batch_type, shop_name, status, pages_processed, cards_total, cards_new, cards_updated, message, started_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (batch_type, shop_name, status, pages_processed, cards_total, cards_new, cards_updated, message, started_at))
         conn.commit()
         return cursor.lastrowid
 

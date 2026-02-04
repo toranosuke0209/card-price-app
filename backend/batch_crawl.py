@@ -1134,6 +1134,7 @@ def run_crawl(shop_key: str, max_pages: int = MAX_PAGES_PER_DAY):
     crawler = None
     total_cards = 0
     new_cards = 0
+    updated_cards = 0
     pages_processed = 0
     started_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -1162,7 +1163,7 @@ def run_crawl(shop_key: str, max_pages: int = MAX_PAGES_PER_DAY):
 
                 # 価格を保存
                 if card_data.get("price", 0) > 0:
-                    save_price_if_changed(
+                    price_saved = save_price_if_changed(
                         card_id=card.id,
                         shop_id=shop.id,
                         price=card_data["price"],
@@ -1171,6 +1172,10 @@ def run_crawl(shop_key: str, max_pages: int = MAX_PAGES_PER_DAY):
                         url=card_data.get("detail_url", ""),
                         image_url=card_data.get("image_url", ""),
                     )
+                    # 既存カードで価格が保存された場合は更新としてカウント
+                    is_new = card.first_seen_at and str(card.first_seen_at).startswith(today_str)
+                    if price_saved and not is_new:
+                        updated_cards += 1
 
             if page >= total_pages:
                 progress.update_progress(1, total_pages, 'pending')
@@ -1186,6 +1191,7 @@ def run_crawl(shop_key: str, max_pages: int = MAX_PAGES_PER_DAY):
         print(f"  処理ページ数: {pages_processed}")
         print(f"  取得カード数: {total_cards}")
         print(f"  新規登録数: {new_cards}")
+        print(f"  価格更新数: {updated_cards}")
 
         # 成功ログを保存
         save_batch_log(
@@ -1195,6 +1201,7 @@ def run_crawl(shop_key: str, max_pages: int = MAX_PAGES_PER_DAY):
             pages_processed=pages_processed,
             cards_total=total_cards,
             cards_new=new_cards,
+            cards_updated=updated_cards,
             message=f"{pages_processed}ページ巡回完了",
             started_at=started_at
         )
@@ -1212,6 +1219,7 @@ def run_crawl(shop_key: str, max_pages: int = MAX_PAGES_PER_DAY):
             pages_processed=pages_processed,
             cards_total=total_cards,
             cards_new=new_cards,
+            cards_updated=updated_cards,
             message=str(e),
             started_at=started_at
         )
