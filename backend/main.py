@@ -124,6 +124,20 @@ from database import (
     get_users_paginated,
     update_user_is_active,
     update_user_role,
+    # 通知関連
+    migrate_v8_notifications,
+    get_user_notifications,
+    get_unread_notification_count,
+    mark_notification_read,
+    mark_all_notifications_read,
+    get_notification_settings,
+    update_notification_settings,
+    # X投稿キュー関連
+    migrate_v9_x_post_queue,
+    get_pending_x_posts,
+    get_all_x_posts,
+    mark_x_post_as_posted,
+    delete_x_post,
 )
 
 from auth import (
@@ -155,6 +169,8 @@ async def startup():
     migrate_v3_auth()  # v3認証マイグレーション実行
     migrate_v4_featured_keywords()  # v4人気キーワードマイグレーション実行
     migrate_v5_amazon_products()  # v5 Amazon商品マイグレーション実行
+    migrate_v8_notifications()  # v8通知機能マイグレーション実行
+    migrate_v9_x_post_queue()  # v9 X投稿キューマイグレーション実行
     init_shops()
 
 
@@ -741,6 +757,72 @@ async def remove_favorite_card(
         )
 
     return {"message": "お気に入りから削除しました", "card_id": card_id}
+
+
+# =============================================================================
+# 通知API
+# =============================================================================
+
+@app.get("/api/notifications")
+async def get_notifications(
+    unread_only: bool = False,
+    limit: int = 50,
+    current_user: User = Depends(get_current_user_required)
+):
+    """通知一覧を取得"""
+    notifications = get_user_notifications(current_user.id, unread_only, limit)
+    return {"notifications": notifications}
+
+
+@app.get("/api/notifications/count")
+async def get_notification_count(current_user: User = Depends(get_current_user_required)):
+    """未読通知数を取得"""
+    count = get_unread_notification_count(current_user.id)
+    return {"unread_count": count}
+
+
+@app.post("/api/notifications/{notification_id}/read")
+async def mark_read(
+    notification_id: int,
+    current_user: User = Depends(get_current_user_required)
+):
+    """通知を既読にする"""
+    success = mark_notification_read(notification_id, current_user.id)
+    if not success:
+        raise HTTPException(status_code=404, detail="通知が見つかりません")
+    return {"message": "既読にしました"}
+
+
+@app.post("/api/notifications/read-all")
+async def mark_all_read(current_user: User = Depends(get_current_user_required)):
+    """全通知を既読にする"""
+    count = mark_all_notifications_read(current_user.id)
+    return {"message": f"{count}件を既読にしました", "count": count}
+
+
+@app.get("/api/notifications/settings")
+async def get_settings(current_user: User = Depends(get_current_user_required)):
+    """通知設定を取得"""
+    settings = get_notification_settings(current_user.id)
+    return {"settings": settings}
+
+
+class NotificationSettingsUpdate(BaseModel):
+    email_enabled: Optional[int] = None
+    email_address: Optional[str] = None
+    site_enabled: Optional[int] = None
+    price_drop_threshold: Optional[int] = None
+    price_rise_threshold: Optional[int] = None
+
+
+@app.put("/api/notifications/settings")
+async def update_settings(
+    settings: NotificationSettingsUpdate,
+    current_user: User = Depends(get_current_user_required)
+):
+    """通知設定を更新"""
+    updated = update_notification_settings(current_user.id, settings.dict(exclude_none=True))
+    return {"settings": updated}
 
 
 # =============================================================================
@@ -1489,6 +1571,60 @@ async def search_cards_for_grouping(
         cards = [dict(row) for row in cursor.fetchall()]
 
     return {"cards": cards}
+
+
+# =============================================================================
+# X投稿キューAPI（管理者用）
+# =============================================================================
+
+@app.get("/api/admin/x-posts")
+async def get_x_posts(
+    pending_only: bool = False,
+    limit: int = 50,
+    admin_user: User = Depends(require_admin)
+):
+    """X投稿キュー一覧を取得"""
+    posts = get_all_x_posts(limit=limit, include_posted=not pending_only)
+    return {"posts": posts}
+
+
+@app.post("/api/admin/x-posts")
+async def create_custom_x_post(
+    request: dict,
+    admin_user: User = Depends(require_admin)
+):
+    """カスタムX投稿を作成"""
+    content = request.get('content', '').strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="投稿内容を入力してください")
+    if len(content) > 280:
+        raise HTTPException(status_code=400, detail="投稿は280文字以内にしてください")
+    post_id = create_x_post('custom', content)
+    return {"message": "投稿をキューに追加しました", "post_id": post_id}
+
+
+@app.post("/api/admin/x-posts/{post_id}/posted")
+async def mark_posted(
+    post_id: int,
+    admin_user: User = Depends(require_admin)
+):
+    """X投稿を投稿済みにマーク"""
+    success = mark_x_post_as_posted(post_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="投稿が見つかりません")
+    return {"message": "投稿済みにマークしました"}
+
+
+@app.delete("/api/admin/x-posts/{post_id}")
+async def remove_x_post(
+    post_id: int,
+    admin_user: User = Depends(require_admin)
+):
+    """X投稿を削除"""
+    success = delete_x_post(post_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="投稿が見つかりません")
+    return {"message": "削除しました"}
 
 
 if __name__ == "__main__":

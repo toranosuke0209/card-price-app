@@ -506,6 +506,100 @@ def migrate_v7_card_groups():
         print("Migration v7 (card_groups) completed")
 
 
+def migrate_v8_notifications():
+    """v8: 通知機能のためのテーブル追加"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # 価格変動履歴テーブル
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS price_changes (
+                id INTEGER PRIMARY KEY,
+                card_id INTEGER NOT NULL,
+                shop_id INTEGER NOT NULL,
+                old_price INTEGER NOT NULL,
+                new_price INTEGER NOT NULL,
+                change_amount INTEGER NOT NULL,
+                change_percent REAL NOT NULL,
+                detected_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (card_id) REFERENCES cards(id),
+                FOREIGN KEY (shop_id) REFERENCES shops(id)
+            )
+        """)
+
+        # ユーザー通知テーブル
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS notifications (
+                id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                message TEXT NOT NULL,
+                card_id INTEGER,
+                price_change_id INTEGER,
+                is_read INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                FOREIGN KEY (card_id) REFERENCES cards(id),
+                FOREIGN KEY (price_change_id) REFERENCES price_changes(id)
+            )
+        """)
+
+        # 通知設定テーブル
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS notification_settings (
+                id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL UNIQUE,
+                email_enabled INTEGER DEFAULT 0,
+                email_address TEXT,
+                site_enabled INTEGER DEFAULT 1,
+                price_drop_threshold INTEGER DEFAULT 0,
+                price_rise_threshold INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+
+        # インデックス作成
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_price_changes_card ON price_changes(card_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_price_changes_detected ON price_changes(detected_at)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(user_id, is_read)")
+
+        conn.commit()
+        print("Migration v8 (notifications) completed")
+
+
+def migrate_v9_x_post_queue():
+    """v9: X投稿キュー用テーブル追加"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # X投稿キューテーブル
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS x_post_queue (
+                id INTEGER PRIMARY KEY,
+                post_type TEXT NOT NULL,
+                content TEXT NOT NULL,
+                card_id INTEGER,
+                price_change_id INTEGER,
+                status TEXT DEFAULT 'pending',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                posted_at TEXT,
+                FOREIGN KEY (card_id) REFERENCES cards(id),
+                FOREIGN KEY (price_change_id) REFERENCES price_changes(id)
+            )
+        """)
+
+        # インデックス作成
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_x_post_queue_status ON x_post_queue(status)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_x_post_queue_created ON x_post_queue(created_at)")
+
+        conn.commit()
+        print("Migration v9 (x_post_queue) completed")
+
+
 def update_card_numbers():
     """既存カードのカード番号・基本名を抽出して更新"""
     with get_connection() as conn:
@@ -676,6 +770,8 @@ def save_price_if_changed(card_id: int, shop_id: int, price: int, stock: int,
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (card_id, shop_id, price, stock, stock_text, url, image_url))
         conn.commit()
+        # 価格履歴を保存
+        save_to_price_history(card_id, shop_id, price)
         return cursor.lastrowid
 
 
@@ -1382,16 +1478,16 @@ def update_card_price_fetch_time(card_id: int):
 
 def save_batch_log(batch_type: str, shop_name: str, status: str,
                    pages_processed: int = 0, cards_total: int = 0,
-                   cards_new: int = 0, message: str = None,
+                   cards_new: int = 0, cards_updated: int = 0, message: str = None,
                    started_at: str = None) -> int:
     """バッチ実行ログを保存"""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO batch_logs
-            (batch_type, shop_name, status, pages_processed, cards_total, cards_new, message, started_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (batch_type, shop_name, status, pages_processed, cards_total, cards_new, message, started_at))
+            (batch_type, shop_name, status, pages_processed, cards_total, cards_new, cards_updated, message, started_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (batch_type, shop_name, status, pages_processed, cards_total, cards_new, cards_updated, message, started_at))
         conn.commit()
         return cursor.lastrowid
 
@@ -1535,7 +1631,12 @@ def get_user_favorites(user_id: int) -> list[dict]:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT f.id as favorite_id, f.created_at as favorited_at,
-                   c.id as card_id, c.name as card_name
+                   c.id as card_id, c.name as card_name,
+                   c.extracted_card_no as card_no,
+                   (SELECT MIN(p.price) FROM prices p WHERE p.card_id = c.id AND p.stock = 1) as min_price,
+                   (SELECT MAX(p.price) FROM prices p WHERE p.card_id = c.id AND p.stock = 1) as max_price,
+                   (SELECT COUNT(DISTINCT p.shop_id) FROM prices p WHERE p.card_id = c.id AND p.stock = 1) as shop_count,
+                   (SELECT p.image_url FROM prices p WHERE p.card_id = c.id AND p.image_url IS NOT NULL AND p.image_url != '' LIMIT 1) as image_url
             FROM favorites f
             JOIN cards c ON f.card_id = c.id
             WHERE f.user_id = ?
@@ -2290,6 +2391,350 @@ def update_user_role(user_id: int, role: str, admin_id: int) -> Optional[User]:
         return User(**dict(row)) if row else None
 
 
+# =============================================================================
+# 通知機能
+# =============================================================================
+
+def save_price_change(card_id: int, shop_id: int, old_price: int, new_price: int) -> int:
+    """価格変動を記録"""
+    change_amount = new_price - old_price
+    change_percent = (change_amount / old_price * 100) if old_price > 0 else 0
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO price_changes (card_id, shop_id, old_price, new_price, change_amount, change_percent)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (card_id, shop_id, old_price, new_price, change_amount, change_percent))
+        conn.commit()
+        return cursor.lastrowid
+
+
+def get_recent_price_changes(days: int = 7, limit: int = 100) -> list[dict]:
+    """最近の価格変動を取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT pc.*, c.name as card_name, s.name as shop_name
+            FROM price_changes pc
+            JOIN cards c ON pc.card_id = c.id
+            JOIN shops s ON pc.shop_id = s.id
+            WHERE pc.detected_at > datetime('now', ? || ' days')
+            ORDER BY pc.detected_at DESC
+            LIMIT ?
+        """, (-days, limit))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def create_notification(user_id: int, type: str, title: str, message: str,
+                       card_id: int = None, price_change_id: int = None) -> int:
+    """通知を作成"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO notifications (user_id, type, title, message, card_id, price_change_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (user_id, type, title, message, card_id, price_change_id))
+        conn.commit()
+        return cursor.lastrowid
+
+
+def get_user_notifications(user_id: int, unread_only: bool = False, limit: int = 50) -> list[dict]:
+    """ユーザーの通知一覧を取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        if unread_only:
+            cursor.execute("""
+                SELECT n.*, c.name as card_name
+                FROM notifications n
+                LEFT JOIN cards c ON n.card_id = c.id
+                WHERE n.user_id = ? AND n.is_read = 0
+                ORDER BY n.created_at DESC
+                LIMIT ?
+            """, (user_id, limit))
+        else:
+            cursor.execute("""
+                SELECT n.*, c.name as card_name
+                FROM notifications n
+                LEFT JOIN cards c ON n.card_id = c.id
+                WHERE n.user_id = ?
+                ORDER BY n.created_at DESC
+                LIMIT ?
+            """, (user_id, limit))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def get_unread_notification_count(user_id: int) -> int:
+    """未読通知数を取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT COUNT(*) FROM notifications
+            WHERE user_id = ? AND is_read = 0
+        """, (user_id,))
+        return cursor.fetchone()[0]
+
+
+def mark_notification_read(notification_id: int, user_id: int) -> bool:
+    """通知を既読にする"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE notifications SET is_read = 1
+            WHERE id = ? AND user_id = ?
+        """, (notification_id, user_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def mark_all_notifications_read(user_id: int) -> int:
+    """全通知を既読にする"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE notifications SET is_read = 1
+            WHERE user_id = ? AND is_read = 0
+        """, (user_id,))
+        conn.commit()
+        return cursor.rowcount
+
+
+def get_notification_settings(user_id: int) -> dict:
+    """通知設定を取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM notification_settings WHERE user_id = ?", (user_id,))
+        row = cursor.fetchone()
+        if row:
+            return dict(row)
+        # デフォルト設定を返す
+        return {
+            'user_id': user_id,
+            'email_enabled': 0,
+            'email_address': None,
+            'site_enabled': 1,
+            'price_drop_threshold': 0,
+            'price_rise_threshold': 0
+        }
+
+
+def update_notification_settings(user_id: int, settings: dict) -> dict:
+    """通知設定を更新"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO notification_settings (user_id, email_enabled, email_address, site_enabled,
+                price_drop_threshold, price_rise_threshold)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                email_enabled = excluded.email_enabled,
+                email_address = excluded.email_address,
+                site_enabled = excluded.site_enabled,
+                price_drop_threshold = excluded.price_drop_threshold,
+                price_rise_threshold = excluded.price_rise_threshold,
+                updated_at = CURRENT_TIMESTAMP
+        """, (
+            user_id,
+            settings.get('email_enabled', 0),
+            settings.get('email_address'),
+            settings.get('site_enabled', 1),
+            settings.get('price_drop_threshold', 0),
+            settings.get('price_rise_threshold', 0)
+        ))
+        conn.commit()
+        return get_notification_settings(user_id)
+
+
+def get_users_with_favorite_card(card_id: int) -> list[dict]:
+    """特定カードをお気に入りに登録しているユーザーを取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT u.id, u.username, u.email, ns.site_enabled, ns.email_enabled,
+                   ns.price_drop_threshold, ns.price_rise_threshold
+            FROM favorites f
+            JOIN users u ON f.user_id = u.id
+            LEFT JOIN notification_settings ns ON u.id = ns.user_id
+            WHERE f.card_id = ? AND u.is_active = 1
+        """, (card_id,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def detect_price_changes_for_favorites() -> list[dict]:
+    """お気に入りカードの価格変動を検出"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        # お気に入りに登録されているカードの最新価格と前回価格を比較
+        cursor.execute("""
+            WITH latest_prices AS (
+                SELECT card_id, shop_id, price, fetched_at,
+                       ROW_NUMBER() OVER (PARTITION BY card_id, shop_id ORDER BY fetched_at DESC) as rn
+                FROM prices
+                WHERE fetched_at > datetime('now', '-2 days')
+            ),
+            previous_prices AS (
+                SELECT card_id, shop_id, price, fetched_at,
+                       ROW_NUMBER() OVER (PARTITION BY card_id, shop_id ORDER BY fetched_at DESC) as rn
+                FROM prices
+                WHERE fetched_at <= datetime('now', '-1 days')
+                  AND fetched_at > datetime('now', '-7 days')
+            )
+            SELECT DISTINCT
+                l.card_id,
+                l.shop_id,
+                p.price as old_price,
+                l.price as new_price,
+                c.name as card_name,
+                s.name as shop_name
+            FROM latest_prices l
+            JOIN previous_prices p ON l.card_id = p.card_id AND l.shop_id = p.shop_id
+            JOIN cards c ON l.card_id = c.id
+            JOIN shops s ON l.shop_id = s.id
+            WHERE l.rn = 1 AND p.rn = 1
+              AND l.price != p.price
+              AND l.card_id IN (SELECT DISTINCT card_id FROM favorites)
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
+
+# =============================================================================
+# X投稿キュー機能
+# =============================================================================
+
+def create_x_post(post_type: str, content: str, card_id: int = None, price_change_id: int = None) -> int:
+    """X投稿キューに追加"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO x_post_queue (post_type, content, card_id, price_change_id)
+            VALUES (?, ?, ?, ?)
+        """, (post_type, content, card_id, price_change_id))
+        conn.commit()
+        return cursor.lastrowid
+
+
+def get_pending_x_posts(limit: int = 50) -> list[dict]:
+    """未投稿のX投稿キューを取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT xp.*, c.name as card_name
+            FROM x_post_queue xp
+            LEFT JOIN cards c ON xp.card_id = c.id
+            WHERE xp.status = 'pending'
+            ORDER BY xp.created_at DESC
+            LIMIT ?
+        """, (limit,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def get_all_x_posts(limit: int = 100, include_posted: bool = True) -> list[dict]:
+    """全てのX投稿キューを取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        if include_posted:
+            cursor.execute("""
+                SELECT xp.*, c.name as card_name
+                FROM x_post_queue xp
+                LEFT JOIN cards c ON xp.card_id = c.id
+                ORDER BY xp.created_at DESC
+                LIMIT ?
+            """, (limit,))
+        else:
+            cursor.execute("""
+                SELECT xp.*, c.name as card_name
+                FROM x_post_queue xp
+                LEFT JOIN cards c ON xp.card_id = c.id
+                WHERE xp.status = 'pending'
+                ORDER BY xp.created_at DESC
+                LIMIT ?
+            """, (limit,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def mark_x_post_as_posted(post_id: int) -> bool:
+    """X投稿を投稿済みにマーク"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE x_post_queue
+            SET status = 'posted', posted_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (post_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def delete_x_post(post_id: int) -> bool:
+    """X投稿を削除"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM x_post_queue WHERE id = ?", (post_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def generate_x_post_content_single(card_name: str, shop_name: str, old_price: int, new_price: int, card_id: int) -> str:
+    """個別投稿用のテキストを生成"""
+    change_amount = new_price - old_price
+    change_percent = abs(change_amount / old_price * 100) if old_price > 0 else 0
+    card_url = f"https://bsprice.net/card/{card_id}"
+
+    if change_amount < 0:
+        # 値下げ
+        text = f"📉 値下げ情報\n\n"
+        text += f"【{card_name}】\n"
+        text += f"🏪 {shop_name}\n"
+        text += f"💰 {old_price:,}円 → {new_price:,}円\n"
+        text += f"🔻 -{abs(change_amount):,}円 ({change_percent:.0f}%OFF)\n\n"
+        text += f"🔗 {card_url}\n\n"
+        text += "#バトスピ #バトルスピリッツ #BSPrice"
+    else:
+        # 値上げ
+        text = f"📈 値上げ情報\n\n"
+        text += f"【{card_name}】\n"
+        text += f"🏪 {shop_name}\n"
+        text += f"💰 {old_price:,}円 → {new_price:,}円\n"
+        text += f"🔺 +{change_amount:,}円 (+{change_percent:.0f}%)\n\n"
+        text += f"🔗 {card_url}\n\n"
+        text += "#バトスピ #バトルスピリッツ #BSPrice"
+
+    return text
+
+
+def generate_x_post_content_summary(changes: list[dict]) -> str:
+    """まとめ投稿用のテキストを生成"""
+    drops = [c for c in changes if c['new_price'] < c['old_price']]
+    rises = [c for c in changes if c['new_price'] > c['old_price']]
+
+    text = "📊 本日の価格変動まとめ\n\n"
+
+    if drops:
+        text += f"🔻 値下げ {len(drops)}件\n"
+        for c in drops[:3]:  # 最大3件
+            diff = c['old_price'] - c['new_price']
+            name = c['card_name'][:15] + "..." if len(c['card_name']) > 15 else c['card_name']
+            text += f"・{name} -{diff:,}円\n"
+        if len(drops) > 3:
+            text += f"  他{len(drops)-3}件\n"
+        text += "\n"
+
+    if rises:
+        text += f"🔺 値上げ {len(rises)}件\n"
+        for c in rises[:3]:  # 最大3件
+            diff = c['new_price'] - c['old_price']
+            name = c['card_name'][:15] + "..." if len(c['card_name']) > 15 else c['card_name']
+            text += f"・{name} +{diff:,}円\n"
+        if len(rises) > 3:
+            text += f"  他{len(rises)-3}件\n"
+        text += "\n"
+
+    text += "詳細はこちら👇\nhttps://bsprice.net\n\n"
+    text += "#バトスピ #BSPrice"
+
+    return text
+
+
 if __name__ == "__main__":
     # 直接実行時にDB初期化
     init_database()
@@ -2300,3 +2745,69 @@ if __name__ == "__main__":
     init_shops()
     print("\nDatabase stats:")
     print(get_database_stats())
+
+
+# =============================================================================
+# v10: 価格履歴テーブル
+# =============================================================================
+
+def migrate_v10_price_history():
+    """v10: 価格履歴テーブル追加"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS price_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                card_id INTEGER NOT NULL,
+                shop_id INTEGER NOT NULL,
+                price INTEGER NOT NULL,
+                recorded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (card_id) REFERENCES cards(id),
+                FOREIGN KEY (shop_id) REFERENCES shops(id)
+            )
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_price_history_card_shop 
+            ON price_history(card_id, shop_id, recorded_at)
+        """)
+        conn.commit()
+        print("v10 migration: price_history table created")
+
+
+def save_to_price_history(card_id: int, shop_id: int, price: int):
+    """価格履歴を保存（1日1レコードに制限）"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id FROM price_history
+            WHERE card_id = ? AND shop_id = ? AND DATE(recorded_at) = DATE('now')
+        """, (card_id, shop_id))
+        if cursor.fetchone():
+            cursor.execute("""
+                UPDATE price_history SET price = ?, recorded_at = CURRENT_TIMESTAMP
+                WHERE card_id = ? AND shop_id = ? AND DATE(recorded_at) = DATE('now')
+            """, (price, card_id, shop_id))
+        else:
+            cursor.execute("""
+                INSERT INTO price_history (card_id, shop_id, price)
+                VALUES (?, ?, ?)
+            """, (card_id, shop_id, price))
+        conn.commit()
+
+
+def get_price_history(card_id: int, days: int = 30) -> list[dict]:
+    """カードの価格履歴を取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT 
+                DATE(ph.recorded_at) as date,
+                s.name as shop_name,
+                ph.price
+            FROM price_history ph
+            JOIN shops s ON ph.shop_id = s.id
+            WHERE ph.card_id = ?
+              AND ph.recorded_at >= datetime('now', ?)
+            ORDER BY ph.recorded_at ASC
+        """, (card_id, f'-{days} days'))
+        return [dict(row) for row in cursor.fetchall()]

@@ -4,11 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
+    <meta name="robots" content="noindex, nofollow">
     <title>管理画面 | BSPrice - バトスピ価格比較</title>
     <link rel="stylesheet" href="/static/style.css">
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2167017279500518"
@@ -59,6 +60,7 @@
                     <button class="admin-tab active" data-tab="dashboard">ダッシュボード</button>
                     <button class="admin-tab" data-tab="cards">カード管理</button>
                     <button class="admin-tab" data-tab="content">コンテンツ管理</button>
+                    <button class="admin-tab" data-tab="x-posts">X投稿</button>
                     <button class="admin-tab" data-tab="analytics">アクセス解析</button>
                     <button class="admin-tab" data-tab="users">ユーザー管理</button>
                     <button class="admin-tab" data-tab="system">システム管理</button>
@@ -279,6 +281,41 @@
                             <button type="submit" class="admin-btn">商品を追加</button>
                         </form>
                         <div class="rakuten-product-list" id="rakuten-product-list"></div>
+                    </div>
+                </div>
+
+                <!-- X投稿タブ -->
+                <div class="admin-tab-content" id="tab-x-posts">
+                    <!-- カスタム投稿作成 -->
+                    <div class="admin-section">
+                        <h2>カスタム投稿を作成</h2>
+                        <div class="custom-post-form">
+                            <textarea id="custom-post-content" placeholder="投稿内容を入力..." rows="4" style="width: 100%; padding: 10px; background: var(--background-secondary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); font-size: 0.95rem; resize: vertical;"></textarea>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+                                <span id="custom-post-count" style="color: var(--text-secondary); font-size: 0.85rem;">0 / 280文字</span>
+                                <div>
+                                    <button class="admin-btn admin-btn-secondary" onclick="previewCustomPost()" style="margin-right: 10px;">プレビュー</button>
+                                    <button class="admin-btn admin-btn-primary" onclick="createCustomPost()">キューに追加</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 投稿キュー一覧 -->
+                    <div class="admin-section">
+                        <h2>X投稿キュー</h2>
+                        <p class="section-desc">
+                            価格変動時に自動生成された投稿文、またはカスタム投稿です。<br>
+                            「Xで投稿」ボタンをクリックすると、Xの投稿画面が開きます。
+                        </p>
+                        <div class="x-posts-controls" style="margin-bottom: 15px;">
+                            <label>
+                                <input type="checkbox" id="x-posts-pending-only" onchange="loadXPosts()">
+                                未投稿のみ表示
+                            </label>
+                            <button class="admin-btn admin-btn-small" onclick="loadXPosts()" style="margin-left: 15px;">更新</button>
+                        </div>
+                        <div id="x-posts-list" class="x-posts-list"></div>
                     </div>
                 </div>
 
@@ -537,6 +574,7 @@
                     <div class="batch-shop-stats">
                         <span class="batch-stat">${log.cards_total.toLocaleString()}件取得</span>
                         <span class="batch-stat">${log.cards_new.toLocaleString()}件新規</span>
+                        <span class="batch-stat">${(log.cards_updated || 0).toLocaleString()}件更新</span>
                         <span class="batch-time">${formatDateJST(log.finished_at)}</span>
                     </div>
                     <div class="batch-status-badge ${log.status}">${log.status === 'success' ? '成功' : 'エラー'}</div>
@@ -1966,6 +2004,170 @@
             } catch (error) {
                 alert(error.message);
             }
+        }
+
+        // =============================================================================
+        // X投稿キュー
+        // =============================================================================
+
+        async function loadXPosts() {
+            const listEl = document.getElementById('x-posts-list');
+            const pendingOnly = document.getElementById('x-posts-pending-only').checked;
+
+            listEl.innerHTML = '<p>読み込み中...</p>';
+
+            try {
+                const response = await fetch(`/api/admin/x-posts?pending_only=${pendingOnly}&limit=50`, {
+                    headers: { 'Authorization': `Bearer ${Auth.getToken()}` }
+                });
+
+                if (!response.ok) throw new Error('読み込みに失敗しました');
+
+                const data = await response.json();
+
+                if (data.posts.length === 0) {
+                    listEl.innerHTML = '<p class="no-data">投稿キューはありません</p>';
+                    return;
+                }
+
+                listEl.innerHTML = data.posts.map(post => `
+                    <div class="x-post-item ${post.status === 'posted' ? 'posted' : 'pending'}">
+                        <div class="x-post-header">
+                            <span class="x-post-type">${getPostTypeLabel(post.post_type)}</span>
+                            <span class="x-post-status ${post.status}">${post.status === 'posted' ? '投稿済み' : '未投稿'}</span>
+                            <span class="x-post-date">${formatDate(post.created_at)}</span>
+                        </div>
+                        <div class="x-post-content">
+                            <pre>${escapeHtml(post.content)}</pre>
+                        </div>
+                        <div class="x-post-actions">
+                            ${post.status === 'pending' ? `
+                                <a href="https://twitter.com/intent/tweet?text=${encodeURIComponent(post.content)}"
+                                   target="_blank"
+                                   class="admin-btn admin-btn-small"
+                                   onclick="markAsPosted(${post.id})">
+                                   Xで投稿
+                                </a>
+                                <button class="admin-btn admin-btn-small admin-btn-secondary" onclick="copyToClipboard('${escapeForJs(post.content)}')">コピー</button>
+                                <button class="admin-btn admin-btn-small admin-btn-danger" onclick="deleteXPost(${post.id})">削除</button>
+                            ` : `
+                                <span class="posted-at">投稿日時: ${formatDate(post.posted_at)}</span>
+                            `}
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                listEl.innerHTML = `<p class="error">${error.message}</p>`;
+            }
+        }
+
+        function getPostTypeLabel(type) {
+            switch (type) {
+                case 'price_drop': return '📉 値下げ';
+                case 'price_rise': return '📈 値上げ';
+                case 'summary': return '📊 まとめ';
+                default: return type;
+            }
+        }
+
+        async function markAsPosted(postId) {
+            try {
+                await fetch(`/api/admin/x-posts/${postId}/posted`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${Auth.getToken()}` }
+                });
+                // 少し待ってからリロード（投稿画面が開いてから）
+                setTimeout(() => loadXPosts(), 1000);
+            } catch (error) {
+                console.error('Failed to mark as posted:', error);
+            }
+        }
+
+        async function deleteXPost(postId) {
+            if (!confirm('この投稿を削除しますか？')) return;
+
+            try {
+                const response = await fetch(`/api/admin/x-posts/${postId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${Auth.getToken()}` }
+                });
+
+                if (!response.ok) throw new Error('削除に失敗しました');
+
+                loadXPosts();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('クリップボードにコピーしました');
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+            });
+        }
+
+        // カスタム投稿の文字数カウント
+        document.addEventListener('DOMContentLoaded', () => {
+            const textarea = document.getElementById('custom-post-content');
+            const counter = document.getElementById('custom-post-count');
+            if (textarea && counter) {
+                textarea.addEventListener('input', () => {
+                    const len = textarea.value.length;
+                    counter.textContent = `${len} / 280文字`;
+                    counter.style.color = len > 280 ? '#ef4444' : 'var(--text-secondary)';
+                });
+            }
+        });
+
+        // カスタム投稿プレビュー
+        function previewCustomPost() {
+            const content = document.getElementById('custom-post-content').value.trim();
+            if (!content) {
+                alert('投稿内容を入力してください');
+                return;
+            }
+            window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(content)}`, '_blank');
+        }
+
+        // カスタム投稿をキューに追加
+        async function createCustomPost() {
+            const textarea = document.getElementById('custom-post-content');
+            const content = textarea.value.trim();
+
+            if (!content) {
+                alert('投稿内容を入力してください');
+                return;
+            }
+            if (content.length > 280) {
+                alert('投稿は280文字以内にしてください');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/admin/x-posts', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${Auth.getToken()}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ content: content })
+                });
+
+                if (!response.ok) throw new Error('投稿の作成に失敗しました');
+
+                textarea.value = '';
+                document.getElementById('custom-post-count').textContent = '0 / 280文字';
+                alert('キューに追加しました');
+                loadXPosts();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        function escapeForJs(text) {
+            return text.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
         }
 
         // ユーティリティ
