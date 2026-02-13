@@ -7,6 +7,8 @@
   python batch_crawl.py --shop tierone         # Tier Oneを巡回
   python batch_crawl.py --shop all             # 全ショップを巡回
   python batch_crawl.py --pages 10             # ページ数指定
+  python batch_crawl.py --new-arrivals --shop all  # 全ショップの新商品取得（ページ1から3ページ）
+  python batch_crawl.py --new-arrivals --pages 5   # 新商品取得（ページ数指定）
   python batch_crawl.py --status               # 全ショップの進捗確認
   python batch_crawl.py --status --shop tierone # 特定ショップの進捗確認
   python batch_crawl.py --reset --shop tierone  # 進捗リセット
@@ -41,6 +43,7 @@ LOCK_FILE = Path(__file__).parent / ".batch_crawl.lock"
 
 # 設定
 MAX_PAGES_PER_DAY = 50
+NEW_ARRIVALS_PAGES = 3  # 新商品取得時のデフォルトページ数
 PAGE_INTERVAL = 5
 
 # 対応ショップ
@@ -1228,6 +1231,108 @@ def run_crawl(shop_key: str, max_pages: int = MAX_PAGES_PER_DAY):
             crawler.close()
 
 
+def run_new_arrivals(shop_key: str, pages: int = NEW_ARRIVALS_PAGES):
+    """新商品取得: ページ1から数ページだけ巡回（通常の進捗に影響しない）"""
+    shop_name = SUPPORTED_SHOPS.get(shop_key)
+    if not shop_name:
+        print(f"エラー: 未対応のショップ '{shop_key}'")
+        return
+
+    shop = get_shop_by_name(shop_name)
+    if not shop:
+        print(f"エラー: ショップ '{shop_name}' が見つかりません")
+        return
+
+    print(f"[{shop_name}] 新商品取得開始: ページ 1〜{pages}")
+
+    crawler = None
+    total_cards = 0
+    new_cards = 0
+    updated_cards = 0
+    pages_processed = 0
+    started_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    try:
+        crawler = get_crawler(shop_key)
+
+        for page in range(1, pages + 1):
+            cards, total_pages = crawler.fetch_page(page)
+            pages_processed += 1
+
+            print(f"[{shop_name}] ページ {page}/{total_pages}: {len(cards)} 件取得")
+
+            for card_data in cards:
+                total_cards += 1
+                card = get_or_create_card_v2(
+                    name=card_data["name"],
+                    card_no=card_data.get("card_no"),
+                    source_shop_id=shop.id,
+                    detail_url=card_data.get("detail_url"),
+                )
+                today_str = datetime.now().strftime("%Y-%m-%d")
+                if card.first_seen_at and str(card.first_seen_at).startswith(today_str):
+                    new_cards += 1
+
+                if card_data.get("price", 0) > 0:
+                    price_saved = save_price_if_changed(
+                        card_id=card.id,
+                        shop_id=shop.id,
+                        price=card_data["price"],
+                        stock=card_data.get("stock", 0),
+                        stock_text=card_data.get("stock_text", ""),
+                        url=card_data.get("detail_url", ""),
+                        image_url=card_data.get("image_url", ""),
+                    )
+                    is_new = card.first_seen_at and str(card.first_seen_at).startswith(today_str)
+                    if price_saved and not is_new:
+                        updated_cards += 1
+
+            if page >= total_pages:
+                print(f"[{shop_name}] 全ページ取得済み（{total_pages}ページ）")
+                break
+
+            if page < pages:
+                time.sleep(PAGE_INTERVAL)
+
+        print(f"\n[{shop_name}] 新商品取得完了")
+        print(f"  処理ページ数: {pages_processed}")
+        print(f"  取得カード数: {total_cards}")
+        print(f"  新規登録数: {new_cards}")
+        print(f"  価格更新数: {updated_cards}")
+
+        save_batch_log(
+            batch_type='new_arrivals',
+            shop_name=shop_name,
+            status='success',
+            pages_processed=pages_processed,
+            cards_total=total_cards,
+            cards_new=new_cards,
+            cards_updated=updated_cards,
+            message=f"新商品取得: {pages_processed}ページ巡回完了",
+            started_at=started_at
+        )
+
+    except Exception as e:
+        print(f"[{shop_name}] エラー: {e}")
+        import traceback
+        traceback.print_exc()
+
+        save_batch_log(
+            batch_type='new_arrivals',
+            shop_name=shop_name,
+            status='error',
+            pages_processed=pages_processed,
+            cards_total=total_cards,
+            cards_new=new_cards,
+            cards_updated=updated_cards,
+            message=str(e),
+            started_at=started_at
+        )
+    finally:
+        if crawler:
+            crawler.close()
+
+
 def show_status(shop_key: str = None):
     """進捗状況を表示"""
     shops_to_check = [shop_key] if shop_key else list(SUPPORTED_SHOPS.keys())
@@ -1281,6 +1386,8 @@ def main():
                         help="対象ショップ（デフォルト: cardrush）")
     parser.add_argument("--pages", type=int, default=MAX_PAGES_PER_DAY,
                         help=f"処理するページ数（デフォルト: {MAX_PAGES_PER_DAY}）")
+    parser.add_argument("--new-arrivals", action="store_true",
+                        help="新商品取得モード（ページ1から数ページだけ巡回、進捗に影響なし）")
     parser.add_argument("--status", action="store_true", help="進捗確認")
     parser.add_argument("--reset", action="store_true", help="進捗リセット")
 
@@ -1310,12 +1417,23 @@ def main():
         lock_fd = None
 
     try:
-        if args.shop == "all":
-            for shop_key in SUPPORTED_SHOPS.keys():
-                run_crawl(shop_key, max_pages=args.pages)
-                print()
+        if args.new_arrivals:
+            # 新商品取得モード: ページ1から数ページだけ巡回
+            pages = args.pages if args.pages != MAX_PAGES_PER_DAY else NEW_ARRIVALS_PAGES
+            print(f"=== 新商品取得モード（{pages}ページ） ===")
+            if args.shop == "all":
+                for shop_key in SUPPORTED_SHOPS.keys():
+                    run_new_arrivals(shop_key, pages=pages)
+                    print()
+            else:
+                run_new_arrivals(args.shop, pages=pages)
         else:
-            run_crawl(args.shop, max_pages=args.pages)
+            if args.shop == "all":
+                for shop_key in SUPPORTED_SHOPS.keys():
+                    run_crawl(shop_key, max_pages=args.pages)
+                    print()
+            else:
+                run_crawl(args.shop, max_pages=args.pages)
     finally:
         if lock_fd:
             release_lock(lock_fd)
