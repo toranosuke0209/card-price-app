@@ -30,6 +30,7 @@
                 <a href="/">トップ</a>
                 <a href="/ranking">ランキング</a>
                 <a href="/shops">ショップ一覧</a>
+                <a href="/blog">ブログ</a>
             </nav>
             <div id="user-menu" class="user-menu"></div>
         </div>
@@ -63,6 +64,7 @@
                     <button class="admin-tab" data-tab="x-posts">X投稿</button>
                     <button class="admin-tab" data-tab="analytics">アクセス解析</button>
                     <button class="admin-tab" data-tab="users">ユーザー管理</button>
+                    <button class="admin-tab" data-tab="articles">ブログ記事</button>
                     <button class="admin-tab" data-tab="system">システム管理</button>
                 </div>
 
@@ -385,6 +387,69 @@
                 </div>
 
                 <!-- システム管理タブ -->
+                <div class="admin-tab-content" id="tab-articles">
+                    <div class="admin-section">
+                        <h2 id="article-form-title">新しい記事を作成</h2>
+                        <div class="article-editor">
+                            <input type="hidden" id="article-edit-id" value="">
+                            <div class="form-row">
+                                <label>タイトル</label>
+                                <input type="text" id="article-title" placeholder="記事のタイトル" oninput="generateSlugFromTitle()">
+                            </div>
+                            <div class="form-row">
+                                <label>スラッグ（URL）</label>
+                                <div class="slug-preview">
+                                    <span class="slug-prefix">/blog/</span>
+                                    <input type="text" id="article-slug" placeholder="url-friendly-slug">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <label>概要</label>
+                                <textarea id="article-description" rows="2" placeholder="記事の概要（一覧やメタタグに使用）"></textarea>
+                            </div>
+                            <div class="form-row">
+                                <label>サムネイル</label>
+                                <div class="thumbnail-row">
+                                    <input type="text" id="article-thumbnail" placeholder="URLまたはアップロード">
+                                    <button class="toolbar-btn" onclick="document.getElementById('thumbnail-file-input').click();" type="button">📷</button>
+                                    <input type="file" id="thumbnail-file-input" accept="image/*" capture="environment" style="display:none;" onchange="uploadThumbnailImage(this.files[0])">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <label>本文</label>
+                                <div class="editor-toolbar">
+                                    <button class="toolbar-btn" onclick="document.getElementById('content-image-input').click();" type="button">📷 画像</button>
+                                    <button class="toolbar-btn" id="toggle-markdown-btn" onclick="toggleMarkdownView()" type="button">MD</button>
+                                    <input type="file" id="content-image-input" accept="image/*" capture="environment" style="display:none;" onchange="handleContentImageSelect(this.files[0])">
+                                </div>
+                                <textarea id="article-content" class="hidden" rows="12" oninput="syncTextareaToEditor()"></textarea>
+                                <div id="wysiwyg-editor" class="wysiwyg-editor" contenteditable="true"
+                                    oninput="syncEditorToTextarea()"
+                                    ondragover="event.preventDefault();this.classList.add('drag-over');"
+                                    ondragleave="this.classList.remove('drag-over');"
+                                    ondrop="handleEditorImageDrop(event);this.classList.remove('drag-over');"
+                                    data-placeholder="ここに記事を書いてください..."></div>
+                            </div>
+                            <div class="form-row">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="article-published"> 公開する
+                                </label>
+                            </div>
+                            <div class="form-actions article-form-actions">
+                                <button class="admin-btn" id="article-submit-btn" onclick="handleSubmitArticle()">作成</button>
+                                <button class="admin-btn admin-btn-outline" onclick="handleSaveDraft()">下書き保存</button>
+                                <button class="admin-btn admin-btn-secondary" id="article-cancel-btn" onclick="cancelEditArticle()" style="display:none;">キャンセル</button>
+                                <span id="autosave-status" class="autosave-status"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="admin-section">
+                        <h2>記事一覧</h2>
+                        <div id="article-list-admin" class="admin-article-list"></div>
+                    </div>
+                </div>
+
                 <div class="admin-tab-content" id="tab-system">
                     <!-- 招待コード管理 -->
                     <div class="admin-section">
@@ -417,6 +482,7 @@
                     <a href="/">トップ</a>
                     <a href="/ranking">ランキング</a>
                     <a href="/shops">ショップ一覧</a>
+                    <a href="/blog">ブログ</a>
                 </div>
                 <div class="footer-section">
                     <h4>対応ショップ</h4>
@@ -441,6 +507,9 @@
         </div>
     </footer>
 
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/turndown@7/dist/turndown.js"></script>
     <script src="/static/auth.js"></script>
     <script>
         // 現在のユーザー情報
@@ -485,8 +554,10 @@
             loadRakutenProducts();
             loadAnalytics();
             loadCardGroups();
+            loadAdminArticles();
             updateSelectedCardsDisplay();
             loadUsers();
+            restoreLocalDraft();
         });
 
         // タブ切り替え設定
@@ -2168,6 +2239,444 @@
 
         function escapeForJs(text) {
             return text.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
+        }
+
+        // =============================================================================
+        // ブログ記事管理
+        // =============================================================================
+
+        async function loadAdminArticles() {
+            const listEl = document.getElementById('article-list-admin');
+            if (!listEl) return;
+
+            try {
+                const response = await Auth.authFetch('/api/admin/articles');
+                if (!response.ok) throw new Error('記事の取得に失敗しました');
+                const data = await response.json();
+
+                if (data.articles.length === 0) {
+                    listEl.innerHTML = '<p class="section-desc">まだ記事がありません。</p>';
+                    return;
+                }
+
+                listEl.innerHTML = data.articles.map(article => `
+                    <div class="admin-article-item">
+                        <div class="admin-article-info">
+                            <span class="article-status-badge ${article.is_published ? 'published' : 'draft'}">${article.is_published ? '公開' : '下書き'}</span>
+                            <strong>${escapeHtml(article.title)}</strong>
+                            <span class="admin-article-slug">/blog/${escapeHtml(article.slug)}</span>
+                            <span class="admin-article-date">${formatDate(article.published_at || article.created_at)}</span>
+                        </div>
+                        <div class="admin-article-actions">
+                            ${article.is_published
+                                ? `<a href="/blog/${escapeHtml(article.slug)}" target="_blank" class="admin-btn admin-btn-small admin-btn-secondary">表示</a>`
+                                : ''
+                            }
+                            <button class="admin-btn admin-btn-small" onclick="handleEditArticle(${article.id})">編集</button>
+                            <button class="admin-btn admin-btn-small ${article.is_published ? 'admin-btn-secondary' : 'admin-btn-success'}" onclick="toggleArticlePublished(${article.id}, ${article.is_published})">${article.is_published ? '非公開' : '公開'}</button>
+                            <button class="admin-btn admin-btn-small admin-btn-danger" onclick="handleDeleteArticle(${article.id})">削除</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                listEl.innerHTML = `<p class="error">${error.message}</p>`;
+            }
+        }
+
+        function generateSlugFromTitle() {
+            const title = document.getElementById('article-title').value;
+            const slugEl = document.getElementById('article-slug');
+            // 編集中でなければ自動生成
+            if (document.getElementById('article-edit-id').value) return;
+            // ローマ字変換は難しいのでタイムスタンプベースのslugを生成
+            if (title.trim()) {
+                const slug = title.trim()
+                    .toLowerCase()
+                    .replace(/[^\w\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf\s-]/g, '')
+                    .replace(/[\s　]+/g, '-')
+                    .replace(/-+/g, '-')
+                    .replace(/^-|-$/g, '');
+                slugEl.value = slug || `article-${Date.now()}`;
+            }
+        }
+
+        let markdownViewVisible = false;
+        let syncDebounceTimer = null;
+
+        // turndown設定（HTML→Markdown変換）
+        const turndownService = new TurndownService({
+            headingStyle: 'atx',
+            codeBlockStyle: 'fenced',
+            emDelimiter: '*',
+        });
+
+        // Markdownソース表示トグル
+        function toggleMarkdownView() {
+            markdownViewVisible = !markdownViewVisible;
+            const textarea = document.getElementById('article-content');
+            const btn = document.getElementById('toggle-markdown-btn');
+            if (markdownViewVisible) {
+                syncEditorToTextarea();
+                textarea.classList.remove('hidden');
+                btn.textContent = 'Markdown非表示';
+            } else {
+                textarea.classList.add('hidden');
+                btn.textContent = 'Markdown';
+            }
+        }
+
+        // WYSIWYGエディタ → textarea（常時同期）
+        function syncEditorToTextarea() {
+            clearTimeout(syncDebounceTimer);
+            syncDebounceTimer = setTimeout(() => {
+                const html = document.getElementById('wysiwyg-editor').innerHTML;
+                document.getElementById('article-content').value = turndownService.turndown(html);
+            }, 300);
+        }
+
+        // textarea → WYSIWYGエディタ（Markdown手動編集時）
+        function syncTextareaToEditor() {
+            const content = document.getElementById('article-content').value;
+            document.getElementById('wysiwyg-editor').innerHTML =
+                DOMPurify.sanitize(marked.parse(content || ''));
+        }
+
+        // エディタにMarkdownをロード（編集開始・初期化時）
+        function loadContentToEditor(markdown) {
+            document.getElementById('article-content').value = markdown;
+            document.getElementById('wysiwyg-editor').innerHTML =
+                DOMPurify.sanitize(marked.parse(markdown || ''));
+        }
+
+        // エディタに画像ドロップ
+        async function handleEditorImageDrop(event) {
+            event.preventDefault();
+            const files = event.dataTransfer.files;
+            for (const file of files) {
+                if (!file.type.startsWith('image/')) continue;
+                try {
+                    const url = await uploadImage(file);
+                    const img = document.createElement('img');
+                    img.src = url;
+                    img.style.maxWidth = '100%';
+                    const sel = window.getSelection();
+                    if (sel.rangeCount) {
+                        const range = sel.getRangeAt(0);
+                        range.deleteContents();
+                        range.insertNode(img);
+                        range.collapse(false);
+                    } else {
+                        document.getElementById('wysiwyg-editor').appendChild(img);
+                    }
+                    syncEditorToTextarea();
+                } catch (error) {
+                    alert(error.message);
+                }
+            }
+        }
+
+        async function handleSubmitArticle() {
+            // 保存前にエディタ→textareaを確実に同期
+            const html = document.getElementById('wysiwyg-editor').innerHTML;
+            document.getElementById('article-content').value = turndownService.turndown(html);
+
+            const editId = document.getElementById('article-edit-id').value;
+            const payload = {
+                title: document.getElementById('article-title').value.trim(),
+                slug: document.getElementById('article-slug').value.trim(),
+                description: document.getElementById('article-description').value.trim(),
+                content: document.getElementById('article-content').value.trim(),
+                thumbnail_url: document.getElementById('article-thumbnail').value.trim(),
+                is_published: document.getElementById('article-published').checked,
+            };
+
+            if (!payload.title || !payload.slug || !payload.content) {
+                alert('タイトル、スラッグ、本文は必須です');
+                return;
+            }
+
+            try {
+                const url = editId ? `/api/admin/articles/${editId}` : '/api/admin/articles';
+                const method = editId ? 'PUT' : 'POST';
+                const response = await Auth.authFetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || '保存に失敗しました');
+                }
+
+                clearLocalDraft();
+                alert(editId ? '記事を更新しました' : '記事を作成しました');
+                clearArticleForm();
+                loadAdminArticles();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        async function handleEditArticle(id) {
+            try {
+                const response = await Auth.authFetch(`/api/admin/articles/${id}`);
+                if (!response.ok) throw new Error('記事の取得に失敗しました');
+                const data = await response.json();
+                const article = data.article;
+
+                document.getElementById('article-edit-id').value = article.id;
+                document.getElementById('article-title').value = article.title;
+                document.getElementById('article-slug').value = article.slug;
+                document.getElementById('article-description').value = article.description;
+                loadContentToEditor(article.content);
+                document.getElementById('article-thumbnail').value = article.thumbnail_url || '';
+                document.getElementById('article-published').checked = !!article.is_published;
+
+                document.getElementById('article-form-title').textContent = '記事を編集';
+                document.getElementById('article-submit-btn').textContent = '更新';
+                document.getElementById('article-cancel-btn').style.display = '';
+
+                // 記事タブにスクロール
+                document.getElementById('tab-articles').scrollIntoView({ behavior: 'smooth' });
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        function cancelEditArticle() {
+            clearArticleForm();
+        }
+
+        function clearArticleForm() {
+            document.getElementById('article-edit-id').value = '';
+            document.getElementById('article-title').value = '';
+            document.getElementById('article-slug').value = '';
+            document.getElementById('article-description').value = '';
+            document.getElementById('article-content').value = '';
+            document.getElementById('article-thumbnail').value = '';
+            document.getElementById('article-published').checked = false;
+            document.getElementById('article-form-title').textContent = '新しい記事を作成';
+            document.getElementById('article-submit-btn').textContent = '作成';
+            document.getElementById('article-cancel-btn').style.display = 'none';
+            document.getElementById('wysiwyg-editor').innerHTML = '';
+            document.getElementById('article-content').classList.add('hidden');
+            document.getElementById('toggle-markdown-btn').textContent = 'Markdown';
+            markdownViewVisible = false;
+            clearLocalDraft();
+        }
+
+        // === 進捗保存（localStorage自動保存 + 下書きサーバー保存）===
+        const DRAFT_STORAGE_KEY = 'bsprice_article_draft';
+        let autosaveTimer = null;
+
+        function getFormData() {
+            const html = document.getElementById('wysiwyg-editor').innerHTML;
+            return {
+                editId: document.getElementById('article-edit-id').value,
+                title: document.getElementById('article-title').value,
+                slug: document.getElementById('article-slug').value,
+                description: document.getElementById('article-description').value,
+                content: turndownService.turndown(html),
+                thumbnail_url: document.getElementById('article-thumbnail').value,
+                savedAt: new Date().toISOString(),
+            };
+        }
+
+        function autoSaveToLocal() {
+            const data = getFormData();
+            // 何も入力されていなければ保存しない
+            if (!data.title && !data.content) return;
+            localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(data));
+            showAutosaveStatus('自動保存済み');
+        }
+
+        function scheduleAutosave() {
+            clearTimeout(autosaveTimer);
+            autosaveTimer = setTimeout(autoSaveToLocal, 5000);
+        }
+
+        function showAutosaveStatus(msg) {
+            const el = document.getElementById('autosave-status');
+            el.textContent = msg;
+            el.classList.add('visible');
+            setTimeout(() => el.classList.remove('visible'), 3000);
+        }
+
+        function clearLocalDraft() {
+            localStorage.removeItem(DRAFT_STORAGE_KEY);
+        }
+
+        function restoreLocalDraft() {
+            const saved = localStorage.getItem(DRAFT_STORAGE_KEY);
+            if (!saved) return;
+            try {
+                const data = JSON.parse(saved);
+                const ago = Math.round((Date.now() - new Date(data.savedAt).getTime()) / 60000);
+                const timeLabel = ago < 1 ? '1分以内' : `${ago}分前`;
+                if (!confirm(`保存されていない下書きがあります（${timeLabel}）。復元しますか？`)) {
+                    clearLocalDraft();
+                    return;
+                }
+                if (data.editId) document.getElementById('article-edit-id').value = data.editId;
+                document.getElementById('article-title').value = data.title || '';
+                document.getElementById('article-slug').value = data.slug || '';
+                document.getElementById('article-description').value = data.description || '';
+                loadContentToEditor(data.content || '');
+                document.getElementById('article-thumbnail').value = data.thumbnail_url || '';
+                if (data.editId) {
+                    document.getElementById('article-form-title').textContent = '記事を編集';
+                    document.getElementById('article-submit-btn').textContent = '更新';
+                    document.getElementById('article-cancel-btn').style.display = '';
+                }
+                showAutosaveStatus('下書きを復元しました');
+            } catch (e) {
+                clearLocalDraft();
+            }
+        }
+
+        // 下書きとしてサーバーに保存（非公開で保存）
+        async function handleSaveDraft() {
+            const html = document.getElementById('wysiwyg-editor').innerHTML;
+            document.getElementById('article-content').value = turndownService.turndown(html);
+
+            const editId = document.getElementById('article-edit-id').value;
+            const payload = {
+                title: document.getElementById('article-title').value.trim() || '無題の下書き',
+                slug: document.getElementById('article-slug').value.trim() || `draft-${Date.now()}`,
+                description: document.getElementById('article-description').value.trim(),
+                content: document.getElementById('article-content').value.trim(),
+                thumbnail_url: document.getElementById('article-thumbnail').value.trim(),
+                is_published: false,
+            };
+
+            if (!payload.content) {
+                alert('本文を入力してください');
+                return;
+            }
+
+            try {
+                const url = editId ? `/api/admin/articles/${editId}` : '/api/admin/articles';
+                const method = editId ? 'PUT' : 'POST';
+                const response = await Auth.authFetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || '保存に失敗しました');
+                }
+
+                const result = await response.json();
+                // 新規作成の場合、以降は編集モードに切り替え
+                if (!editId && result.article) {
+                    document.getElementById('article-edit-id').value = result.article.id;
+                    document.getElementById('article-form-title').textContent = '記事を編集';
+                    document.getElementById('article-submit-btn').textContent = '更新';
+                    document.getElementById('article-cancel-btn').style.display = '';
+                }
+
+                clearLocalDraft();
+                showAutosaveStatus('下書きを保存しました');
+                loadAdminArticles();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        // WYSIWYGエディタの入力時に自動保存スケジュール
+        const _origSyncEditor = syncEditorToTextarea;
+        syncEditorToTextarea = function() {
+            _origSyncEditor();
+            scheduleAutosave();
+        };
+
+        // === 画像アップロード関連 ===
+        async function uploadImage(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+            const response = await Auth.authFetch('/api/admin/upload-image', {
+                method: 'POST',
+                body: formData,
+            });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || '画像アップロードに失敗しました');
+            }
+            const data = await response.json();
+            return data.url;
+        }
+
+        function insertImageToEditor(url) {
+            const editor = document.getElementById('wysiwyg-editor');
+            const img = document.createElement('img');
+            img.src = url;
+            img.style.maxWidth = '100%';
+            const sel = window.getSelection();
+            if (sel.rangeCount && editor.contains(sel.anchorNode)) {
+                const range = sel.getRangeAt(0);
+                range.deleteContents();
+                range.insertNode(img);
+                range.collapse(false);
+            } else {
+                editor.appendChild(img);
+            }
+            syncEditorToTextarea();
+        }
+
+        async function handleContentImageSelect(file) {
+            if (!file) return;
+            try {
+                const url = await uploadImage(file);
+                insertImageToEditor(url);
+            } catch (error) {
+                alert(error.message);
+            }
+            document.getElementById('content-image-input').value = '';
+        }
+
+        async function uploadThumbnailImage(file) {
+            if (!file) return;
+            try {
+                const url = await uploadImage(file);
+                document.getElementById('article-thumbnail').value = url;
+            } catch (error) {
+                alert(error.message);
+            }
+            document.getElementById('thumbnail-file-input').value = '';
+        }
+
+        async function toggleArticlePublished(id, currentState) {
+            const action = currentState ? '非公開にしますか？' : '公開しますか？';
+            if (!confirm(action)) return;
+
+            try {
+                const response = await Auth.authFetch(`/api/admin/articles/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_published: !currentState }),
+                });
+                if (!response.ok) throw new Error('更新に失敗しました');
+                loadAdminArticles();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        async function handleDeleteArticle(id) {
+            if (!confirm('この記事を削除しますか？')) return;
+
+            try {
+                const response = await Auth.authFetch(`/api/admin/articles/${id}`, {
+                    method: 'DELETE',
+                });
+                if (!response.ok) throw new Error('削除に失敗しました');
+                loadAdminArticles();
+            } catch (error) {
+                alert(error.message);
+            }
         }
 
         // ユーティリティ

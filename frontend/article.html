@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="canonical" id="canonical-link" href="https://bsprice.net/blog">
+    <!-- Google Analytics (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-5WL1F00NNC"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-5WL1F00NNC');
+    </script>
+    <meta name="description" id="meta-description" content="">
+    <title id="page-title">記事 | BSPrice - バトスピ価格比較</title>
+    <!-- OGP (動的に更新) -->
+    <meta property="og:title" id="og-title" content="">
+    <meta property="og:description" id="og-description" content="">
+    <meta property="og:type" content="article">
+    <meta property="og:url" id="og-url" content="">
+    <meta property="og:site_name" content="BSPrice">
+    <meta property="og:locale" content="ja_JP">
+    <meta property="og:image" id="og-image" content="">
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" id="tw-title" content="">
+    <meta name="twitter:description" id="tw-description" content="">
+    <meta name="twitter:image" id="tw-image" content="">
+    <!-- JSON-LD (動的に挿入) -->
+    <script type="application/ld+json" id="json-ld">{}</script>
+    <link rel="stylesheet" href="/static/style.css">
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2167017279500518"
+         crossorigin="anonymous"></script>
+</head>
+<body>
+    <!-- ヘッダー -->
+    <header class="site-header">
+        <div class="header-inner">
+            <a href="/" class="site-logo">
+                <div class="logo-icon">BS</div>
+                <div class="logo-text-group">
+                    <span class="logo-text">BSPrice</span>
+                    <span class="logo-sub">バトスピ価格比較</span>
+                </div>
+            </a>
+            <nav class="site-nav">
+                <a href="/">トップ</a>
+                <a href="/ranking">ランキング</a>
+                <a href="/shops">ショップ一覧</a>
+                <a href="/blog">ブログ</a>
+            </nav>
+            <div id="user-menu" class="user-menu"></div>
+        </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container">
+            <div id="article-detail" class="article-detail">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>読み込み中...</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- フッター -->
+    <footer class="site-footer">
+        <div class="footer-inner">
+            <div class="footer-links">
+                <div class="footer-section">
+                    <h4>ページ</h4>
+                    <a href="/">トップ</a>
+                    <a href="/ranking">ランキング</a>
+                    <a href="/shops">ショップ一覧</a>
+                    <a href="/blog">ブログ</a>
+                </div>
+                <div class="footer-section">
+                    <h4>対応ショップ</h4>
+                    <span>カードラッシュ</span>
+                    <span>Tier One</span>
+                    <span>フルアヘッド</span>
+                    <span>ホビーステーション</span>
+                    <span>バトスキ</span>
+                    <span>遊々亭</span>
+                </div>
+                <div class="footer-section">
+                    <h4>その他</h4>
+                    <a href="/login">ログイン</a>
+                    <a href="/about">このサイトについて</a>
+                    <a href="/privacy">プライバシーポリシー</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 BSPrice - バトスピ価格比較</p>
+                <p class="footer-note">※価格は各ショップの在庫状況により変動します</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+    <script src="/static/auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // URLからslugを取得
+            const pathParts = window.location.pathname.split('/');
+            const slug = pathParts[pathParts.length - 1];
+            if (!slug) {
+                window.location.href = '/blog';
+                return;
+            }
+            loadArticle(slug);
+        });
+
+        async function loadArticle(slug) {
+            const detailEl = document.getElementById('article-detail');
+
+            try {
+                const response = await fetch(`/api/articles/${encodeURIComponent(slug)}`);
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        detailEl.innerHTML = `
+                            <div class="article-not-found">
+                                <h1>記事が見つかりません</h1>
+                                <p>お探しの記事は存在しないか、非公開の可能性があります。</p>
+                                <a href="/blog" class="back-to-blog">ブログ一覧に戻る</a>
+                            </div>
+                        `;
+                        return;
+                    }
+                    throw new Error('記事の取得に失敗しました');
+                }
+
+                const data = await response.json();
+                const article = data.article;
+
+                // メタタグを動的に更新
+                const pageUrl = `https://bsprice.net/blog/${article.slug}`;
+                document.title = `${article.title} | BSPrice - バトスピ価格比較`;
+                document.getElementById('page-title').textContent = document.title;
+                document.getElementById('meta-description').content = article.description;
+                document.getElementById('canonical-link').href = pageUrl;
+                document.getElementById('og-title').content = article.title;
+                document.getElementById('og-description').content = article.description;
+                document.getElementById('og-url').content = pageUrl;
+                document.getElementById('tw-title').content = article.title;
+                document.getElementById('tw-description').content = article.description;
+                if (article.thumbnail_url) {
+                    document.getElementById('og-image').content = article.thumbnail_url;
+                    document.getElementById('tw-image').content = article.thumbnail_url;
+                }
+
+                // JSON-LD構造化データ
+                const jsonLd = {
+                    "@context": "https://schema.org",
+                    "@type": "BlogPosting",
+                    "headline": article.title,
+                    "description": article.description,
+                    "url": pageUrl,
+                    "datePublished": article.published_at || article.created_at,
+                    "dateModified": article.updated_at || article.created_at,
+                    "publisher": {
+                        "@type": "Organization",
+                        "name": "BSPrice",
+                        "url": "https://bsprice.net"
+                    },
+                    "mainEntityOfPage": { "@type": "WebPage", "@id": pageUrl }
+                };
+                if (article.thumbnail_url) {
+                    jsonLd.image = article.thumbnail_url;
+                }
+                document.getElementById('json-ld').textContent = JSON.stringify(jsonLd);
+
+                // Markdownをレンダリング
+                const renderedContent = DOMPurify.sanitize(marked.parse(article.content));
+
+                detailEl.innerHTML = `
+                    <nav class="article-breadcrumb">
+                        <a href="/">トップ</a> &gt; <a href="/blog">ブログ</a> &gt; <span>${escapeHtml(article.title)}</span>
+                    </nav>
+                    ${article.thumbnail_url ? `<img src="${escapeHtml(article.thumbnail_url)}" alt="${escapeHtml(article.title)}" class="article-hero-image">` : ''}
+                    <h1 class="article-title">${escapeHtml(article.title)}</h1>
+                    <div class="article-meta">
+                        <time>${formatDate(article.published_at || article.created_at)}</time>
+                    </div>
+                    <div class="article-content">${renderedContent}</div>
+                    <div class="article-footer">
+                        <a href="/blog" class="back-to-blog">&larr; ブログ一覧に戻る</a>
+                    </div>
+                `;
+            } catch (error) {
+                detailEl.innerHTML = `<p class="error">${error.message}</p>`;
+            }
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            let utcStr = dateStr;
+            if (!dateStr.endsWith('Z') && !dateStr.includes('+')) {
+                utcStr = dateStr.replace(' ', 'T') + 'Z';
+            }
+            const date = new Date(utcStr);
+            return date.toLocaleDateString('ja-JP', {
+                timeZone: 'Asia/Tokyo',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+            });
+        }
+    </script>
+</body>
+</html>

@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Optional
 from contextlib import contextmanager
 
-from models import Shop, Card, Price, Click, SearchLog, BatchProgress, FetchQueue, User, Favorite, AdminInvite, FeaturedKeyword
+from models import Shop, Card, Price, Click, SearchLog, BatchProgress, FetchQueue, User, Favorite, AdminInvite, FeaturedKeyword, Article
 
 # DBファイルパス
 DB_PATH = Path(__file__).parent / "card_price.db"
@@ -2800,7 +2800,7 @@ def get_price_history(card_id: int, days: int = 30) -> list[dict]:
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT 
+            SELECT
                 DATE(ph.recorded_at) as date,
                 s.name as shop_name,
                 ph.price
@@ -2811,3 +2811,128 @@ def get_price_history(card_id: int, days: int = 30) -> list[dict]:
             ORDER BY ph.recorded_at ASC
         """, (card_id, f'-{days} days'))
         return [dict(row) for row in cursor.fetchall()]
+
+
+# =============================================================================
+# v11: ブログ記事機能
+# =============================================================================
+
+def migrate_v11_articles():
+    """v11: ブログ記事テーブル追加"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS articles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                slug TEXT NOT NULL UNIQUE,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                content TEXT NOT NULL,
+                thumbnail_url TEXT,
+                is_published INTEGER DEFAULT 0,
+                created_by INTEGER NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                published_at TEXT,
+                FOREIGN KEY (created_by) REFERENCES users(id)
+            )
+        """)
+
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_articles_slug ON articles(slug)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_articles_published ON articles(is_published, published_at DESC)")
+
+        conn.commit()
+        print("Migration v11 (articles) completed")
+
+
+def get_articles(published_only: bool = True, limit: int = 10, offset: int = 0) -> tuple[list[Article], int]:
+    """記事一覧を取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        where = "WHERE is_published = 1" if published_only else ""
+
+        cursor.execute(f"SELECT COUNT(*) FROM articles {where}")
+        total = cursor.fetchone()[0]
+
+        cursor.execute(f"""
+            SELECT * FROM articles {where}
+            ORDER BY COALESCE(published_at, created_at) DESC
+            LIMIT ? OFFSET ?
+        """, (limit, offset))
+
+        articles = [Article(**dict(row)) for row in cursor.fetchall()]
+        return articles, total
+
+
+def get_article_by_slug(slug: str) -> Optional[Article]:
+    """スラッグで記事を取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM articles WHERE slug = ?", (slug,))
+        row = cursor.fetchone()
+        if row:
+            return Article(**dict(row))
+        return None
+
+
+def get_article_by_id(article_id: int) -> Optional[Article]:
+    """IDで記事を取得"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM articles WHERE id = ?", (article_id,))
+        row = cursor.fetchone()
+        if row:
+            return Article(**dict(row))
+        return None
+
+
+def create_article(slug: str, title: str, description: str, content: str,
+                   created_by: int, thumbnail_url: Optional[str] = None,
+                   is_published: int = 0) -> Article:
+    """記事を作成"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        published_at = datetime.utcnow().isoformat() if is_published else None
+        cursor.execute("""
+            INSERT INTO articles (slug, title, description, content, thumbnail_url, is_published, created_by, published_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (slug, title, description, content, thumbnail_url, is_published, created_by, published_at))
+        conn.commit()
+        return get_article_by_id(cursor.lastrowid)
+
+
+def update_article(article_id: int, **kwargs) -> Optional[Article]:
+    """記事を更新"""
+    allowed_fields = {'slug', 'title', 'description', 'content', 'thumbnail_url', 'is_published'}
+    updates = {k: v for k, v in kwargs.items() if k in allowed_fields}
+    if not updates:
+        return get_article_by_id(article_id)
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+
+        # 公開状態が変わった場合、published_atを更新
+        if 'is_published' in updates:
+            existing = get_article_by_id(article_id)
+            if existing and not existing.is_published and updates['is_published']:
+                updates['published_at'] = datetime.utcnow().isoformat()
+
+        updates['updated_at'] = datetime.utcnow().isoformat()
+
+        set_clause = ", ".join(f"{k} = ?" for k in updates)
+        values = list(updates.values()) + [article_id]
+
+        cursor.execute(f"UPDATE articles SET {set_clause} WHERE id = ?", values)
+        conn.commit()
+        return get_article_by_id(article_id)
+
+
+def delete_article(article_id: int) -> bool:
+    """記事を削除"""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM articles WHERE id = ?", (article_id,))
+        conn.commit()
+        return cursor.rowcount > 0

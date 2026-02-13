@@ -202,6 +202,43 @@ class FeaturedKeyword:
 
 
 @dataclass
+class Article:
+    """ブログ記事"""
+    id: int
+    slug: str
+    title: str
+    description: str
+    content: str
+    thumbnail_url: Optional[str] = None
+    is_published: int = 0
+    created_by: int = 0
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    published_at: Optional[datetime] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "slug": self.slug,
+            "title": self.title,
+            "description": self.description,
+            "content": self.content,
+            "thumbnail_url": self.thumbnail_url,
+            "is_published": self.is_published,
+            "created_by": self.created_by,
+            "created_at": str(self.created_at) if self.created_at else None,
+            "updated_at": str(self.updated_at) if self.updated_at else None,
+            "published_at": str(self.published_at) if self.published_at else None,
+        }
+
+    def to_list_dict(self) -> dict:
+        """content を除いた軽量版（一覧用）"""
+        d = self.to_dict()
+        del d["content"]
+        return d
+
+
+@dataclass
 class AmazonProduct:
     """Amazon商品（アフィリエイト用）"""
     id: int

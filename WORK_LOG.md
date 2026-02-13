@@ -373,6 +373,70 @@ sudo nohup /home/ubuntu/project/backend/venv/bin/uvicorn main:app --host 0.0.0.0
 
 ---
 
+## 2026-02-10: ブログ記事エディタ - 画像アップロード＆WYSIWYGエディタ
+
+### 実装内容
+
+ブログ記事エディタを大幅改善。画像アップロード機能、WYSIWYGエディタ、進捗保存機能、モバイル対応を追加。
+
+#### 変更ファイル
+| ファイル | 変更内容 |
+|---------|---------|
+| `backend/main.py` | `POST /api/admin/upload-image` エンドポイント追加、import追加（UploadFile, time, re）、起動時にuploads/blogディレクトリ自動作成 |
+| `frontend/admin.html` | WYSIWYGエディタ化、画像アップロードUI、下書き保存、localStorage自動保存、モバイル対応 |
+| `frontend/style.css` | WYSIWYGエディタ、ツールバー、モバイルレスポンシブCSS追加 |
+
+### 画像アップロードAPI
+
+| 項目 | 内容 |
+|------|------|
+| エンドポイント | `POST /api/admin/upload-image` |
+| 認証 | `require_admin` |
+| 許可拡張子 | .jpg, .jpeg, .png, .gif, .webp |
+| サイズ上限 | 5MB |
+| 保存先 | `frontend/uploads/blog/{timestamp}_{sanitized_name}.ext` |
+| レスポンス | `{"url": "/static/uploads/blog/xxx.jpg"}` |
+
+### WYSIWYGエディタ（noteライク）
+
+- **contenteditable** divがメインエディタ（textareaは裏で保持）
+- **marked.js**: Markdown→HTML（エディタ表示）
+- **turndown.js**: HTML→Markdown（保存時変換）
+- **DOMPurify**: XSS対策
+- 「MD」ボタンで生Markdown表示/編集も可能（トグル）
+
+### 画像挿入方法
+1. 「📷 画像」ボタン → ファイル選択 → エディタに挿入
+2. エディタにドラッグ&ドロップ → 自動アップロード＆挿入
+3. サムネイル欄の📷ボタン → サムネイルURL自動設定
+4. モバイル: `capture="environment"` でカメラ撮影も選択可能
+
+### 進捗保存機能
+1. **localStorage自動保存**: 入力後5秒で自動保存、ページ再開時に復元確認ダイアログ
+2. **「下書き保存」ボタン**: サーバーに非公開(is_published=false)で保存、新規記事は保存後に編集モードに自動切替
+3. **自動保存ステータス**: ボタン横にフェードイン/アウト表示
+
+### モバイル対応
+- ツールバーボタンをタップしやすいサイズに（padding: 10px 16px）
+- WYSIWYGエディタのmin-heightを768px以下で250px、480px以下で200pxに縮小
+- フォームアクションボタンがflex-wrapで折り返し
+- スラッグ入力がモバイルで縦並び
+- `touch-action: manipulation`でダブルタップズーム防止
+- `-webkit-overflow-scrolling: touch`でスムーズスクロール
+
+### CDN追加
+```html
+<script src="https://cdn.jsdelivr.net/npm/turndown@7/dist/turndown.js"></script>
+```
+※ marked.js, DOMPurifyは既存
+
+### 既知の問題（今回の変更とは無関係）
+- `api/admin/cards?limit=20&offset=0` → 405 Method Not Allowed（以前から）
+- `site.webmanifest` → 404（PWAファイル未配置）
+- `renderRakutenProducts` → 楽天商品画像URLの404（以前から）
+
+---
+
 ## 次回作業候補
 
 1. **フルアヘッド価格問題修正**（優先）

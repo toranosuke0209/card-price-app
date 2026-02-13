@@ -8,9 +8,11 @@
 - 旧実装は main_old.py に保存
 """
 import secrets
+import time
+import re
 from pathlib import Path
 from urllib.parse import unquote
-from fastapi import FastAPI, Query, Depends, HTTPException, status
+from fastapi import FastAPI, Query, Depends, HTTPException, status, UploadFile, File as FastAPIFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from pydantic import BaseModel
@@ -138,6 +140,14 @@ from database import (
     get_all_x_posts,
     mark_x_post_as_posted,
     delete_x_post,
+    # ブログ記事関連
+    migrate_v11_articles,
+    get_articles,
+    get_article_by_slug,
+    get_article_by_id,
+    create_article,
+    update_article,
+    delete_article,
 )
 
 from auth import (
@@ -171,7 +181,10 @@ async def startup():
     migrate_v5_amazon_products()  # v5 Amazon商品マイグレーション実行
     migrate_v8_notifications()  # v8通知機能マイグレーション実行
     migrate_v9_x_post_queue()  # v9 X投稿キューマイグレーション実行
+    migrate_v11_articles()  # v11 ブログ記事マイグレーション実行
     init_shops()
+    # ブログ画像アップロードディレクトリ作成
+    (frontend_path / "uploads" / "blog").mkdir(parents=True, exist_ok=True)
 
 
 @app.get("/")
@@ -232,6 +245,18 @@ async def favorites_page():
 async def card_page(card_id: int):
     """カード詳細ページを返す"""
     return FileResponse(frontend_path / "card.html")
+
+
+@app.get("/blog")
+async def blog_page():
+    """ブログ一覧ページを返す"""
+    return FileResponse(frontend_path / "blog.html")
+
+
+@app.get("/blog/{slug}")
+async def article_page(slug: str):
+    """記事詳細ページを返す"""
+    return FileResponse(frontend_path / "article.html")
 
 
 @app.get("/robots.txt")
@@ -1625,6 +1650,166 @@ async def remove_x_post(
     if not success:
         raise HTTPException(status_code=404, detail="投稿が見つかりません")
     return {"message": "削除しました"}
+
+
+# =============================================================================
+# ブログ記事API（公開）
+# =============================================================================
+
+@app.get("/api/articles")
+async def get_public_articles(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(10, ge=1, le=50),
+):
+    """公開記事一覧を取得"""
+    offset = (page - 1) * per_page
+    articles, total = get_articles(published_only=True, limit=per_page, offset=offset)
+    return {
+        "articles": [a.to_list_dict() for a in articles],
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "total_pages": (total + per_page - 1) // per_page,
+    }
+
+
+@app.get("/api/articles/{slug}")
+async def get_public_article(slug: str):
+    """公開記事を取得"""
+    article = get_article_by_slug(slug)
+    if not article or not article.is_published:
+        raise HTTPException(status_code=404, detail="記事が見つかりません")
+    return {"article": article.to_dict()}
+
+
+# =============================================================================
+# ブログ記事API（管理者用）
+# =============================================================================
+
+@app.get("/api/admin/articles")
+async def get_admin_articles(
+    admin_user: User = Depends(require_admin),
+):
+    """全記事一覧を取得（下書き含む）"""
+    articles, total = get_articles(published_only=False, limit=100, offset=0)
+    return {"articles": [a.to_list_dict() for a in articles], "total": total}
+
+
+@app.get("/api/admin/articles/{article_id}")
+async def get_admin_article(
+    article_id: int,
+    admin_user: User = Depends(require_admin),
+):
+    """記事詳細を取得（下書き含む）"""
+    article = get_article_by_id(article_id)
+    if not article:
+        raise HTTPException(status_code=404, detail="記事が見つかりません")
+    return {"article": article.to_dict()}
+
+
+@app.post("/api/admin/articles")
+async def create_admin_article(
+    request: dict,
+    admin_user: User = Depends(require_admin),
+):
+    """記事を作成"""
+    slug = request.get('slug', '').strip()
+    title = request.get('title', '').strip()
+    description = request.get('description', '').strip()
+    content = request.get('content', '').strip()
+    thumbnail_url = request.get('thumbnail_url', '').strip() or None
+    is_published = 1 if request.get('is_published') else 0
+
+    if not slug or not title or not content:
+        raise HTTPException(status_code=400, detail="スラッグ、タイトル、本文は必須です")
+
+    # スラッグの重複チェック
+    existing = get_article_by_slug(slug)
+    if existing:
+        raise HTTPException(status_code=400, detail="このスラッグは既に使用されています")
+
+    article = create_article(
+        slug=slug, title=title, description=description, content=content,
+        created_by=admin_user.id, thumbnail_url=thumbnail_url, is_published=is_published,
+    )
+    return {"message": "記事を作成しました", "article": article.to_dict()}
+
+
+@app.put("/api/admin/articles/{article_id}")
+async def update_admin_article(
+    article_id: int,
+    request: dict,
+    admin_user: User = Depends(require_admin),
+):
+    """記事を更新"""
+    article = get_article_by_id(article_id)
+    if not article:
+        raise HTTPException(status_code=404, detail="記事が見つかりません")
+
+    kwargs = {}
+    for field in ('slug', 'title', 'description', 'content', 'thumbnail_url'):
+        if field in request:
+            kwargs[field] = request[field].strip() if isinstance(request[field], str) else request[field]
+    if 'is_published' in request:
+        kwargs['is_published'] = 1 if request['is_published'] else 0
+
+    # スラッグ変更時の重複チェック
+    if 'slug' in kwargs and kwargs['slug'] != article.slug:
+        existing = get_article_by_slug(kwargs['slug'])
+        if existing:
+            raise HTTPException(status_code=400, detail="このスラッグは既に使用されています")
+
+    updated = update_article(article_id, **kwargs)
+    return {"message": "記事を更新しました", "article": updated.to_dict()}
+
+
+@app.delete("/api/admin/articles/{article_id}")
+async def delete_admin_article(
+    article_id: int,
+    admin_user: User = Depends(require_admin),
+):
+    """記事を削除"""
+    success = delete_article(article_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="記事が見つかりません")
+    return {"message": "記事を削除しました"}
+
+
+ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB
+
+
+@app.post("/api/admin/upload-image")
+async def upload_image(
+    file: UploadFile = FastAPIFile(...),
+    admin_user: User = Depends(require_admin),
+):
+    """ブログ記事用の画像をアップロード"""
+    # 拡張子チェック
+    ext = Path(file.filename).suffix.lower() if file.filename else ""
+    if ext not in ALLOWED_IMAGE_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"許可されていないファイル形式です。対応形式: {', '.join(ALLOWED_IMAGE_EXTENSIONS)}",
+        )
+
+    # ファイル読み込み + サイズチェック
+    contents = await file.read()
+    if len(contents) > MAX_IMAGE_SIZE:
+        raise HTTPException(status_code=400, detail="ファイルサイズが5MBを超えています")
+
+    # ファイル名をsanitize（英数字・ハイフン・アンダースコア・ドットのみ残す）
+    original = Path(file.filename).stem if file.filename else "image"
+    safe_name = re.sub(r"[^\w\-.]", "_", original)[:50]
+    filename = f"{int(time.time())}_{safe_name}{ext}"
+
+    # 保存
+    upload_dir = frontend_path / "uploads" / "blog"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    save_path = upload_dir / filename
+    save_path.write_bytes(contents)
+
+    return {"url": f"/static/uploads/blog/{filename}"}
 
 
 if __name__ == "__main__":

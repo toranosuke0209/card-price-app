@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="canonical" href="https://bsprice.net/blog">
+    <!-- Google Analytics (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-5WL1F00NNC"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-5WL1F00NNC');
+    </script>
+    <meta name="description" content="バトルスピリッツに関するお役立ち情報、デッキ構築ガイド、高騰カード解説などを発信するブログです。">
+    <title>ブログ | BSPrice - バトスピ価格比較</title>
+    <!-- OGP -->
+    <meta property="og:title" content="ブログ | BSPrice - バトスピ価格比較">
+    <meta property="og:description" content="バトルスピリッツに関するお役立ち情報、デッキ構築ガイド、高騰カード解説などを発信するブログです。">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://bsprice.net/blog">
+    <meta property="og:site_name" content="BSPrice">
+    <meta property="og:locale" content="ja_JP">
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="ブログ | BSPrice - バトスピ価格比較">
+    <meta name="twitter:description" content="バトルスピリッツに関するお役立ち情報、デッキ構築ガイド、高騰カード解説などを発信するブログです。">
+    <!-- 構造化データ (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Blog",
+        "name": "BSPrice ブログ",
+        "description": "バトルスピリッツに関するお役立ち情報、デッキ構築ガイド、高騰カード解説などを発信するブログです。",
+        "url": "https://bsprice.net/blog",
+        "publisher": {
+            "@type": "Organization",
+            "name": "BSPrice",
+            "url": "https://bsprice.net"
+        }
+    }
+    </script>
+    <link rel="stylesheet" href="/static/style.css">
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2167017279500518"
+         crossorigin="anonymous"></script>
+</head>
+<body>
+    <!-- ヘッダー -->
+    <header class="site-header">
+        <div class="header-inner">
+            <a href="/" class="site-logo">
+                <div class="logo-icon">BS</div>
+                <div class="logo-text-group">
+                    <span class="logo-text">BSPrice</span>
+                    <span class="logo-sub">バトスピ価格比較</span>
+                </div>
+            </a>
+            <nav class="site-nav">
+                <a href="/">トップ</a>
+                <a href="/ranking">ランキング</a>
+                <a href="/shops">ショップ一覧</a>
+                <a href="/blog" class="active">ブログ</a>
+            </nav>
+            <div id="user-menu" class="user-menu"></div>
+        </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        <div class="container">
+            <div class="blog-header">
+                <h1>ブログ</h1>
+                <p class="blog-header-desc">バトスピに関するお役立ち情報を発信しています</p>
+            </div>
+
+            <div id="article-list" class="article-list">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>読み込み中...</p>
+                </div>
+            </div>
+
+            <div id="pagination" class="pagination"></div>
+        </div>
+    </main>
+
+    <!-- フッター -->
+    <footer class="site-footer">
+        <div class="footer-inner">
+            <div class="footer-links">
+                <div class="footer-section">
+                    <h4>ページ</h4>
+                    <a href="/">トップ</a>
+                    <a href="/ranking">ランキング</a>
+                    <a href="/shops">ショップ一覧</a>
+                    <a href="/blog">ブログ</a>
+                </div>
+                <div class="footer-section">
+                    <h4>対応ショップ</h4>
+                    <span>カードラッシュ</span>
+                    <span>Tier One</span>
+                    <span>フルアヘッド</span>
+                    <span>ホビーステーション</span>
+                    <span>バトスキ</span>
+                    <span>遊々亭</span>
+                </div>
+                <div class="footer-section">
+                    <h4>その他</h4>
+                    <a href="/login">ログイン</a>
+                    <a href="/about">このサイトについて</a>
+                    <a href="/privacy">プライバシーポリシー</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 BSPrice - バトスピ価格比較</p>
+                <p class="footer-note">※価格は各ショップの在庫状況により変動します</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="/static/auth.js"></script>
+    <script>
+        let currentPage = 1;
+        const perPage = 12;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // URLパラメータからページ取得
+            const params = new URLSearchParams(window.location.search);
+            currentPage = parseInt(params.get('page')) || 1;
+            loadArticles(currentPage);
+        });
+
+        async function loadArticles(page) {
+            const listEl = document.getElementById('article-list');
+            const paginationEl = document.getElementById('pagination');
+
+            try {
+                const response = await fetch(`/api/articles?page=${page}&per_page=${perPage}`);
+                if (!response.ok) throw new Error('記事の取得に失敗しました');
+                const data = await response.json();
+
+                if (data.articles.length === 0) {
+                    listEl.innerHTML = '<p class="no-articles">まだ記事がありません。</p>';
+                    paginationEl.innerHTML = '';
+                    return;
+                }
+
+                listEl.innerHTML = data.articles.map(article => `
+                    <a href="/blog/${escapeHtml(article.slug)}" class="article-card">
+                        <div class="article-card-thumbnail">
+                            ${article.thumbnail_url
+                                ? `<img src="${escapeHtml(article.thumbnail_url)}" alt="${escapeHtml(article.title)}" loading="lazy">`
+                                : '<div class="article-card-no-thumb">BS</div>'
+                            }
+                        </div>
+                        <div class="article-card-body">
+                            <h2 class="article-card-title">${escapeHtml(article.title)}</h2>
+                            <p class="article-card-desc">${escapeHtml(article.description)}</p>
+                            <time class="article-card-date">${formatDate(article.published_at || article.created_at)}</time>
+                        </div>
+                    </a>
+                `).join('');
+
+                // ページネーション
+                if (data.total_pages > 1) {
+                    let html = '';
+                    for (let i = 1; i <= data.total_pages; i++) {
+                        html += `<a href="/blog?page=${i}" class="page-link ${i === page ? 'active' : ''}" onclick="event.preventDefault(); goToPage(${i})">${i}</a>`;
+                    }
+                    paginationEl.innerHTML = html;
+                } else {
+                    paginationEl.innerHTML = '';
+                }
+            } catch (error) {
+                listEl.innerHTML = `<p class="error">${error.message}</p>`;
+            }
+        }
+
+        function goToPage(page) {
+            currentPage = page;
+            window.history.pushState({}, '', `/blog?page=${page}`);
+            loadArticles(page);
+            window.scrollTo(0, 0);
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            let utcStr = dateStr;
+            if (!dateStr.endsWith('Z') && !dateStr.includes('+')) {
+                utcStr = dateStr.replace(' ', 'T') + 'Z';
+            }
+            const date = new Date(utcStr);
+            return date.toLocaleDateString('ja-JP', {
+                timeZone: 'Asia/Tokyo',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+            });
+        }
+    </script>
+</body>
+</html>
