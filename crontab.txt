@@ -15,7 +15,9 @@
 # 新規バッチ（v2: ショップ起点カード登録）
 # =============================================================================
 
-# [1] 新商品取得バッチ - 毎日深夜0時（各ショップのページ1〜3を巡回して新商品を取得）
+# [1] 新商品取得バッチ - 毎日深夜0時（EC2 5ショップ: ドラスタ除外）
+#     ※ローカルPCから全ショップ（遊々亭含む）一括実行: local/new_arrivals.bat
+#     ※Windowsタスクスケジューラで0:00に new_arrivals.bat を設定推奨
 0 0 * * * cd /home/ubuntu/project/backend && /home/ubuntu/project/backend/venv/bin/python batch_crawl.py --new-arrivals --shop all >> /var/log/card-crawl-batch.log 2>&1
 
 # [2] カード登録バッチ - 毎日深夜3時（全商品ページ巡回、1日50ページ）

@@ -56,6 +56,15 @@ SUPPORTED_SHOPS = {
     "dorasuta": "ドラスタ",
 }
 
+# 新商品取得の対象ショップ（ドラスタはボット判定が厳しいため除外）
+NEW_ARRIVALS_SHOPS = {
+    "cardrush": "カードラッシュ",
+    "tierone": "Tier One",
+    "hobbystation": "ホビーステーション",
+    "batosuki": "バトスキ",
+    "fullahead": "フルアヘッド",
+}
+
 
 class CrawlProgress:
     """巡回進捗管理"""
@@ -1422,11 +1431,14 @@ def main():
             pages = args.pages if args.pages != MAX_PAGES_PER_DAY else NEW_ARRIVALS_PAGES
             print(f"=== 新商品取得モード（{pages}ページ） ===")
             if args.shop == "all":
-                for shop_key in SUPPORTED_SHOPS.keys():
+                for shop_key in NEW_ARRIVALS_SHOPS.keys():
                     run_new_arrivals(shop_key, pages=pages)
                     print()
             else:
-                run_new_arrivals(args.shop, pages=pages)
+                if args.shop == "dorasuta":
+                    print("ドラスタはボット判定が厳しいため新商品取得の対象外です")
+                else:
+                    run_new_arrivals(args.shop, pages=pages)
         else:
             if args.shop == "all":
                 for shop_key in SUPPORTED_SHOPS.keys():

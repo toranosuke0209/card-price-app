@@ -5,6 +5,7 @@
 使用方法:
   python crawl_yuyutei.py                  # 全セット巡回
   python crawl_yuyutei.py --sets bs74 bs73 # 特定セットのみ
+  python crawl_yuyutei.py --new-arrivals   # 新商品取得（最新セットのみ）
   python crawl_yuyutei.py --list-sets      # セット一覧を表示
 """
 
@@ -69,6 +70,15 @@ BS_SETS = [
     "cb09", "cb08", "cb07", "cb06", "cb05", "cb04", "cb03", "cb02", "cb01",
     # 特殊
     "sale", "damage", "new",
+]
+
+# 新商品取得用セット（最新弾 + 新着カテゴリ）
+NEW_ARRIVALS_SETS = [
+    "new",   # 新着商品
+    "bs74",  # 最新弾
+    "bs73",  # 直近弾
+    "bsc50", # 最新コラボ/構築済み
+    "sd67",  # 最新スターターデッキ
 ]
 
 
@@ -191,6 +201,7 @@ def parse_product(element, set_code: str) -> dict | None:
 def main():
     parser = argparse.ArgumentParser(description="遊々亭クローラー（ローカル実行用）")
     parser.add_argument("--sets", nargs="+", help="クロールするセットコード（指定しない場合は全セット）")
+    parser.add_argument("--new-arrivals", action="store_true", help="新商品取得モード（最新セットのみ巡回）")
     parser.add_argument("--list-sets", action="store_true", help="セット一覧を表示")
     parser.add_argument("--output", type=str, help="出力ファイル名（デフォルト: yuyutei_YYYYMMDD.json）")
 
@@ -206,7 +217,13 @@ def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     # クロール対象セット
-    sets = args.sets if args.sets else BS_SETS
+    if args.new_arrivals:
+        sets = NEW_ARRIVALS_SETS
+        print("=== 新商品取得モード ===")
+    elif args.sets:
+        sets = args.sets
+    else:
+        sets = BS_SETS
 
     print(f"遊々亭クローラー開始")
     print(f"対象セット数: {len(sets)}")
