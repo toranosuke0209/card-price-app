@@ -41,9 +41,9 @@ echo   HOST: !EC2_HOST!
 echo.
 
 REM ================================================
-REM [1] EC2 shops: new arrivals (cardrush, tierone, hobbystation, batosuki, fullahead)
+REM [1/5] EC2 shops: new arrivals (cardrush, tierone, hobbystation, batosuki, fullahead)
 REM ================================================
-echo [1/3] EC2 shops: new arrivals...
+echo [1/5] EC2 shops: new arrivals...
 ssh -i "!PEM_PATH!" -o StrictHostKeyChecking=no !EC2_HOST! "cd /home/ubuntu/project/backend && /home/ubuntu/project/backend/venv/bin/python batch_crawl.py --new-arrivals --shop all"
 
 if errorlevel 1 (
@@ -52,58 +52,97 @@ if errorlevel 1 (
 echo.
 
 REM ================================================
-REM [2] Yuyutei: crawl locally (new arrivals only)
+REM [2/5] Yuyutei: crawl locally (new arrivals only)
 REM ================================================
-echo [2/3] Yuyutei: crawling new arrivals locally...
+echo [2/5] Yuyutei: crawling new arrivals locally...
 python crawl_yuyutei.py --new-arrivals
 
 if errorlevel 1 (
-    echo Yuyutei crawl failed
-    pause
-    exit /b 1
+    echo WARNING: Yuyutei crawl failed, continuing...
 )
 
-REM Get latest JSON file
-set LATEST_FILE=
+REM Get latest yuyutei JSON file
+set YYT_FILE=
 for /f "delims=" %%i in ('dir /b /o-d output\yuyutei_*.json 2^>nul') do (
-    set "LATEST_FILE=output\%%i"
-    set "FILENAME=%%i"
-    goto :found
+    set "YYT_FILE=output\%%i"
+    set "YYT_FILENAME=%%i"
+    goto :yyt_found
 )
-echo JSON file not found
-pause
-exit /b 1
+echo WARNING: Yuyutei JSON file not found, skipping upload
+goto :yyt_skip
 
-:found
-echo Latest file: !LATEST_FILE!
+:yyt_found
+echo Latest file: !YYT_FILE!
 
 REM ================================================
-REM [3] Upload & import yuyutei data on EC2
+REM [3/5] Upload & import yuyutei data on EC2
 REM ================================================
-echo [3/3] Uploading and importing yuyutei data on EC2...
+echo [3/5] Uploading and importing yuyutei data on EC2...
 
-REM Upload to EC2
-scp -i "!PEM_PATH!" -o StrictHostKeyChecking=no "!LATEST_FILE!" !EC2_HOST!:/home/ubuntu/project/data/
-
-if errorlevel 1 (
-    echo Upload failed
-    pause
-    exit /b 1
-)
-
-REM Import on EC2
-ssh -i "!PEM_PATH!" -o StrictHostKeyChecking=no !EC2_HOST! "cd /home/ubuntu/project/backend && /home/ubuntu/venv/bin/python ../local/import_yuyutei.py --input /home/ubuntu/project/data/!FILENAME!"
+scp -i "!PEM_PATH!" -o StrictHostKeyChecking=no "!YYT_FILE!" !EC2_HOST!:/home/ubuntu/project/data/
 
 if errorlevel 1 (
-    echo Import failed
-    pause
-    exit /b 1
+    echo WARNING: Yuyutei upload failed, continuing...
+    goto :yyt_skip
 )
 
+ssh -i "!PEM_PATH!" -o StrictHostKeyChecking=no !EC2_HOST! "cd /home/ubuntu/project/backend && /home/ubuntu/venv/bin/python ../local/import_yuyutei.py --input /home/ubuntu/project/data/!YYT_FILENAME!"
+
+if errorlevel 1 (
+    echo WARNING: Yuyutei import failed, continuing...
+)
+
+:yyt_skip
 echo.
+
+REM ================================================
+REM [4/5] Dorasuta: crawl locally (new arrivals only)
+REM ================================================
+echo [4/5] Dorasuta: crawling new arrivals locally...
+python crawl_dorasuta.py --new-arrivals
+
+if errorlevel 1 (
+    echo WARNING: Dorasuta crawl failed, continuing...
+)
+
+REM Get latest dorasuta JSON file
+set DRS_FILE=
+for /f "delims=" %%i in ('dir /b /o-d output\dorasuta_*.json 2^>nul') do (
+    set "DRS_FILE=output\%%i"
+    set "DRS_FILENAME=%%i"
+    goto :drs_found
+)
+echo WARNING: Dorasuta JSON file not found, skipping upload
+goto :drs_skip
+
+:drs_found
+echo Latest file: !DRS_FILE!
+
+REM ================================================
+REM [5/5] Upload & import dorasuta data on EC2
+REM ================================================
+echo [5/5] Uploading and importing dorasuta data on EC2...
+
+scp -i "!PEM_PATH!" -o StrictHostKeyChecking=no "!DRS_FILE!" !EC2_HOST!:/home/ubuntu/project/data/
+
+if errorlevel 1 (
+    echo WARNING: Dorasuta upload failed, continuing...
+    goto :drs_skip
+)
+
+ssh -i "!PEM_PATH!" -o StrictHostKeyChecking=no !EC2_HOST! "cd /home/ubuntu/project/backend && /home/ubuntu/venv/bin/python ../local/import_dorasuta.py --input /home/ubuntu/project/data/!DRS_FILENAME!"
+
+if errorlevel 1 (
+    echo WARNING: Dorasuta import failed, continuing...
+)
+
+:drs_skip
+echo.
+
 echo ================================================
 echo New Arrivals Batch Done: %date% %time%
-echo   - EC2 shops (5 shops): completed
-echo   - Yuyutei: crawled, uploaded, imported
+echo   - EC2 shops (5 shops): cardrush, tierone, hobbystation, batosuki, fullahead
+echo   - Yuyutei: local crawl + EC2 import
+echo   - Dorasuta: local crawl + EC2 import
 echo ================================================
 pause

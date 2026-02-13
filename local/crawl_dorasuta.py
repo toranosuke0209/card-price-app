@@ -4,6 +4,7 @@ Seleniumを使用してCloudflareを通過
 
 使用方法:
   python crawl_dorasuta.py                  # 50シリーズずつ巡回（進捗保存）
+  python crawl_dorasuta.py --new-arrivals   # 新商品取得（最新シリーズのみ）
   python crawl_dorasuta.py --status         # 現在の進捗を表示
   python crawl_dorasuta.py --reset          # 進捗をリセット
   python crawl_dorasuta.py --resume 10410:6 # シリーズ10410のページ6から再開
@@ -220,6 +221,15 @@ BS_SERIES = [
     ("5329", "【SD51】メガデッキ【ダブルノヴァデッキX】"),
     ("5302", "戦国プレミアムBOX"),
     ("7679", "ツインウエハース 15thメモリアル"),
+]
+
+# 新商品取得用シリーズ（最新弾のみ）
+NEW_ARRIVALS_SERIES = [
+    ("13019", "【BSC51】ディーバブースター メモリアルレコード"),
+    ("10670", "【BSC50】アニメブースター RESONATING STARS"),
+    ("10516", "【BS74】契約編:環 第3章 覇極来臨"),
+    ("10410", "【BSC49】ドリームブースター 巡る星々"),
+    ("10245", "【BS73】契約編:環 第2章 天地転世"),
 ]
 
 
@@ -530,6 +540,7 @@ def reset_progress():
 
 def main():
     parser = argparse.ArgumentParser(description="ドラスタクローラー（ローカル実行用）")
+    parser.add_argument("--new-arrivals", action="store_true", help="新商品取得モード（最新シリーズのみ巡回）")
     parser.add_argument("--series", nargs="+", help="クロールするシリーズID")
     parser.add_argument("--list-series", action="store_true", help="シリーズ一覧を表示")
     parser.add_argument("--output", type=str, help="出力ファイル名")
@@ -572,6 +583,70 @@ def main():
             existing_data = json.load(f)
         existing_cards = {(c["name"], c["card_no"]) for c in existing_data.get("cards", [])}
         print(f"既存データ: {len(existing_cards)} 件のカード")
+        return
+
+    # --new-arrivals: 新商品取得モード
+    if args.new_arrivals:
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        print("=== 新商品取得モード ===")
+        print(f"対象シリーズ数: {len(NEW_ARRIVALS_SERIES)}")
+        print(f"出力ディレクトリ: {OUTPUT_DIR}")
+        print()
+        print("※ Cloudflareのチェックが表示されたら手動でクリックしてください")
+        print()
+
+        driver = get_driver()
+        all_cards = []
+
+        try:
+            for i, (series_id, series_name) in enumerate(NEW_ARRIVALS_SERIES, 1):
+                print(f"[{i}/{len(NEW_ARRIVALS_SERIES)}] シリーズ: {series_id} {series_name}")
+                cards = crawl_series(driver, series_id, series_name)
+                all_cards.extend(cards)
+
+                if i < len(NEW_ARRIVALS_SERIES):
+                    time.sleep(INTERVAL)
+
+            output_file = args.output if args.output else f"dorasuta_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            output_path = OUTPUT_DIR / output_file
+
+            result = {
+                "crawled_at": datetime.now().isoformat(),
+                "total_cards": len(all_cards),
+                "series_crawled": len(NEW_ARRIVALS_SERIES),
+                "cards": all_cards,
+            }
+
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(result, f, ensure_ascii=False, indent=2)
+
+            print()
+            print(f"新商品取得完了")
+            print(f"  合計カード数: {len(all_cards)}")
+            print(f"  出力ファイル: {output_path}")
+
+        except Exception as e:
+            print()
+            print(f"エラーで停止: {e}")
+            if all_cards:
+                output_file = f"dorasuta_{datetime.now().strftime('%Y%m%d_%H%M%S')}_partial.json"
+                output_path = OUTPUT_DIR / output_file
+                result = {
+                    "crawled_at": datetime.now().isoformat(),
+                    "total_cards": len(all_cards),
+                    "series_crawled": "partial",
+                    "cards": all_cards,
+                }
+                with open(output_path, "w", encoding="utf-8") as f:
+                    json.dump(result, f, ensure_ascii=False, indent=2)
+                print(f"途中結果を保存: {output_path}")
+
+        finally:
+            print()
+            print("5秒後にブラウザを閉じます...")
+            time.sleep(5)
+            driver.quit()
+
         return
 
     # --special: 特価ページのクロール
