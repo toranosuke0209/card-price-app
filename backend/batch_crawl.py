@@ -125,11 +125,20 @@ class BaseCrawler(ABC):
     """クローラー基底クラス"""
     site_name: str = ""
     base_url: str = ""
+    new_arrivals_path: str = ""  # 新着ページのパス
 
     @abstractmethod
     def fetch_page(self, page: int) -> tuple[list[dict], int]:
         """ページを取得して (cards, total_pages) を返す"""
         pass
+
+    def build_new_arrivals_url(self, page: int) -> str:
+        """新着ページのURLを構築（サブクラスでオーバーライド可能）"""
+        return self.base_url + self.new_arrivals_path
+
+    def fetch_page_by_url(self, page: int, url: str) -> tuple[list[dict], int]:
+        """指定URLからページを取得（デフォルトはfetch_pageと同じ）"""
+        return self.fetch_page(page)
 
     @abstractmethod
     def close(self):
@@ -142,6 +151,7 @@ class CardrushCrawler(SeleniumScraper, BaseCrawler):
 
     site_name = "カードラッシュ"
     base_url = "https://www.cardrush-bs.jp"
+    new_arrivals_path = "/new"
 
     def build_search_url(self, keyword: str) -> str:
         return f"{self.base_url}/product-list"
@@ -151,14 +161,18 @@ class CardrushCrawler(SeleniumScraper, BaseCrawler):
             return f"{self.base_url}/product-list"
         return f"{self.base_url}/product-list?page={page}"
 
-    def fetch_page(self, page: int) -> tuple[list[dict], int]:
+    def build_new_arrivals_url(self, page: int) -> str:
+        if page == 1:
+            return f"{self.base_url}/new"
+        return f"{self.base_url}/new?page={page}"
+
+    def _fetch_with_selenium(self, page: int, url: str) -> tuple[list[dict], int]:
         import time
         from selenium.webdriver.common.by import By
         from selenium.webdriver.support.ui import WebDriverWait
         from selenium.webdriver.support import expected_conditions as EC
 
         driver = self._get_driver()
-        url = self.build_list_url(page)
 
         print(f"[{self.site_name}] ページ {page} を取得中: {url}")
 
@@ -181,6 +195,13 @@ class CardrushCrawler(SeleniumScraper, BaseCrawler):
         cards = self._parse_card_list(soup)
 
         return cards, total_pages
+
+    def fetch_page(self, page: int) -> tuple[list[dict], int]:
+        url = self.build_list_url(page)
+        return self._fetch_with_selenium(page, url)
+
+    def fetch_page_by_url(self, page: int, url: str) -> tuple[list[dict], int]:
+        return self._fetch_with_selenium(page, url)
 
     def _parse_total_pages(self, soup: BeautifulSoup) -> int:
         try:
@@ -295,6 +316,7 @@ class TieroneCrawler(BaseCrawler):
 
     site_name = "Tier One"
     base_url = "https://tier-one.jp"
+    new_arrivals_path = "/view/category/bs75"
 
     def __init__(self):
         self.client = httpx.Client(
@@ -310,8 +332,13 @@ class TieroneCrawler(BaseCrawler):
             return f"{self.base_url}/view/category/all_items"
         return f"{self.base_url}/view/category/all_items?page={page}"
 
-    def fetch_page(self, page: int) -> tuple[list[dict], int]:
-        url = self.build_list_url(page)
+    def build_new_arrivals_url(self, page: int) -> str:
+        if page == 1:
+            return f"{self.base_url}/view/category/bs75"
+        return f"{self.base_url}/view/category/bs75?page={page}"
+
+    def _fetch_url(self, page: int, url: str) -> tuple[list[dict], int]:
+        """指定URLからページを取得する共通メソッド"""
         print(f"[{self.site_name}] ページ {page} を取得中: {url}")
 
         try:
@@ -327,6 +354,13 @@ class TieroneCrawler(BaseCrawler):
         cards = self._parse_card_list(soup)
 
         return cards, total_pages
+
+    def fetch_page(self, page: int) -> tuple[list[dict], int]:
+        url = self.build_list_url(page)
+        return self._fetch_url(page, url)
+
+    def fetch_page_by_url(self, page: int, url: str) -> tuple[list[dict], int]:
+        return self._fetch_url(page, url)
 
     def _parse_total_pages(self, soup: BeautifulSoup) -> int:
         try:
@@ -445,6 +479,7 @@ class HobbyStationCrawler(BaseCrawler):
 
     site_name = "ホビーステーション"
     base_url = "https://www.hobbystation-single.jp"
+    new_arrivals_path = "/bs/product/list?page=66"
 
     def __init__(self):
         self.client = httpx.Client(
@@ -458,8 +493,10 @@ class HobbyStationCrawler(BaseCrawler):
     def build_list_url(self, page: int) -> str:
         return f"{self.base_url}/bs/product/list?page=1&pageno={page}"
 
-    def fetch_page(self, page: int) -> tuple[list[dict], int]:
-        url = self.build_list_url(page)
+    def build_new_arrivals_url(self, page: int) -> str:
+        return f"{self.base_url}/bs/product/list?page=66&pageno={page}"
+
+    def _fetch_url(self, page: int, url: str) -> tuple[list[dict], int]:
         print(f"[{self.site_name}] ページ {page} を取得中: {url}")
 
         try:
@@ -475,6 +512,13 @@ class HobbyStationCrawler(BaseCrawler):
         cards = self._parse_card_list(soup)
 
         return cards, total_pages
+
+    def fetch_page(self, page: int) -> tuple[list[dict], int]:
+        url = self.build_list_url(page)
+        return self._fetch_url(page, url)
+
+    def fetch_page_by_url(self, page: int, url: str) -> tuple[list[dict], int]:
+        return self._fetch_url(page, url)
 
     def _parse_total_pages(self, soup: BeautifulSoup) -> int:
         try:
@@ -597,6 +641,7 @@ class BatosukiCrawler(BaseCrawler):
 
     site_name = "バトスキ"
     base_url = "https://batosuki.shop"
+    new_arrivals_path = "/?mode=cate&cbid=2587031&csid=39"
 
     def __init__(self):
         self.client = httpx.Client(
@@ -610,8 +655,10 @@ class BatosukiCrawler(BaseCrawler):
     def build_list_url(self, page: int) -> str:
         return f"{self.base_url}/?mode=srh&page={page}"
 
-    def fetch_page(self, page: int) -> tuple[list[dict], int]:
-        url = self.build_list_url(page)
+    def build_new_arrivals_url(self, page: int) -> str:
+        return f"{self.base_url}/?mode=cate&cbid=2587031&csid=39&page={page}"
+
+    def _fetch_url(self, page: int, url: str) -> tuple[list[dict], int]:
         print(f"[{self.site_name}] ページ {page} を取得中: {url}")
 
         try:
@@ -627,6 +674,13 @@ class BatosukiCrawler(BaseCrawler):
         cards = self._parse_card_list(soup)
 
         return cards, total_pages
+
+    def fetch_page(self, page: int) -> tuple[list[dict], int]:
+        url = self.build_list_url(page)
+        return self._fetch_url(page, url)
+
+    def fetch_page_by_url(self, page: int, url: str) -> tuple[list[dict], int]:
+        return self._fetch_url(page, url)
 
     def _parse_total_pages(self, soup: BeautifulSoup) -> int:
         try:
@@ -729,6 +783,7 @@ class FullaheadCrawler(SeleniumScraper, BaseCrawler):
 
     site_name = "フルアヘッド"
     base_url = "https://fullahead-tcg.com"
+    new_arrivals_path = "/shopbrand/bs75/"
 
     def build_search_url(self, keyword: str) -> str:
         return f"{self.base_url}/shopbrand/all_items/"
@@ -738,14 +793,18 @@ class FullaheadCrawler(SeleniumScraper, BaseCrawler):
             return f"{self.base_url}/shopbrand/all_items/"
         return f"{self.base_url}/shopbrand/all_items/page{page}/order/"
 
-    def fetch_page(self, page: int) -> tuple[list[dict], int]:
+    def build_new_arrivals_url(self, page: int) -> str:
+        if page == 1:
+            return f"{self.base_url}/shopbrand/bs75/"
+        return f"{self.base_url}/shopbrand/bs75/page{page}/order/"
+
+    def _fetch_with_selenium(self, page: int, url: str) -> tuple[list[dict], int]:
         import time
         from selenium.webdriver.common.by import By
         from selenium.webdriver.support.ui import WebDriverWait
         from selenium.webdriver.support import expected_conditions as EC
 
         driver = self._get_driver()
-        url = self.build_list_url(page)
 
         print(f"[{self.site_name}] ページ {page} を取得中: {url}")
 
@@ -768,6 +827,13 @@ class FullaheadCrawler(SeleniumScraper, BaseCrawler):
         cards = self._parse_card_list(soup)
 
         return cards, total_pages
+
+    def fetch_page(self, page: int) -> tuple[list[dict], int]:
+        url = self.build_list_url(page)
+        return self._fetch_with_selenium(page, url)
+
+    def fetch_page_by_url(self, page: int, url: str) -> tuple[list[dict], int]:
+        return self._fetch_with_selenium(page, url)
 
     def _parse_total_pages(self, soup: BeautifulSoup) -> int:
         try:
@@ -913,9 +979,11 @@ class DorasutaCrawler(SeleniumScraper, BaseCrawler):
 
     site_name = "ドラスタ"
     base_url = "https://dorasuta.jp"
+    new_arrivals_path = "/battlespirits/product-list?st0=1"  # 新着順ソート
 
     def __init__(self):
         self._current_page = 0
+        self._new_arrivals_mode = False  # 新着モードフラグ
 
     def build_search_url(self, keyword: str) -> str:
         encoded = quote(keyword, encoding='utf-8')
@@ -925,8 +993,22 @@ class DorasutaCrawler(SeleniumScraper, BaseCrawler):
         # 初回は商品一覧ページ、以降はJavaScriptでページ遷移
         return f"{self.base_url}/battlespirits/product-list"
 
+    def build_new_arrivals_url(self, page: int) -> str:
+        """新着ページのURL（?st0=1で新着順ソート）"""
+        return f"{self.base_url}/battlespirits/product-list?st0=1"
+
+    def fetch_page_by_url(self, page: int, url: str) -> tuple[list[dict], int]:
+        """新着ページ用: 初回はURLで開き、2ページ目以降はJS遷移"""
+        self._new_arrivals_mode = True
+        return self._fetch_dorasuta_page(page, url)
+
     def fetch_page(self, page: int) -> tuple[list[dict], int]:
-        """ページを取得"""
+        """通常巡回用ページ取得"""
+        url = self.build_list_url(page)
+        return self._fetch_dorasuta_page(page, url)
+
+    def _fetch_dorasuta_page(self, page: int, url: str) -> tuple[list[dict], int]:
+        """ドラスタのページを取得する共通メソッド"""
         import time
         from selenium.webdriver.common.by import By
         from selenium.webdriver.support.ui import WebDriverWait
@@ -935,8 +1017,7 @@ class DorasutaCrawler(SeleniumScraper, BaseCrawler):
         driver = self._get_driver()
 
         if page == 1 or self._current_page == 0:
-            # 初回: 商品一覧ページを開く
-            url = self.build_list_url(page)
+            # 初回: 指定URLでページを開く
             print(f"[{self.site_name}] ページ {page} を取得中: {url}")
             driver.get(url)
             time.sleep(4)
@@ -1113,7 +1194,7 @@ def release_lock(lock_fd):
         lock_fd.close()
 
 
-def run_crawl(shop_key: str, max_pages: int = MAX_PAGES_PER_DAY):
+def run_crawl(shop_key: str, max_pages: int = MAX_PAGES_PER_DAY, new_arrivals: bool = False):
     """指定ショップの巡回を実行"""
     shop_name = SUPPORTED_SHOPS.get(shop_key)
     if not shop_name:
@@ -1125,12 +1206,6 @@ def run_crawl(shop_key: str, max_pages: int = MAX_PAGES_PER_DAY):
         print(f"エラー: ショップ '{shop_name}' が見つかりません")
         return
 
-    progress = CrawlProgress(shop.id)
-    progress.init_progress()
-
-    current_page = progress.get_current_page()
-    print(f"[{shop_name}] 巡回開始: ページ {current_page} から")
-
     crawler = None
     total_cards = 0
     new_cards = 0
@@ -1138,13 +1213,28 @@ def run_crawl(shop_key: str, max_pages: int = MAX_PAGES_PER_DAY):
     pages_processed = 0
     started_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    if new_arrivals:
+        # 新着モード: 進捗管理不要、ページ1から全ページ巡回
+        current_page = 1
+        print(f"[{shop_name}] 新着ページ巡回開始")
+    else:
+        progress = CrawlProgress(shop.id)
+        progress.init_progress()
+        current_page = progress.get_current_page()
+        print(f"[{shop_name}] 巡回開始: ページ {current_page} から")
+
     try:
         crawler = get_crawler(shop_key)
 
         for i in range(max_pages):
             page = current_page + i
 
-            cards, total_pages = crawler.fetch_page(page)
+            if new_arrivals:
+                # 新着ページURLを使ってfetch
+                url = crawler.build_new_arrivals_url(page)
+                cards, total_pages = crawler.fetch_page_by_url(page, url)
+            else:
+                cards, total_pages = crawler.fetch_page(page)
             pages_processed += 1
 
             print(f"[{shop_name}] ページ {page}/{total_pages}: {len(cards)} 件取得")
@@ -1178,11 +1268,13 @@ def run_crawl(shop_key: str, max_pages: int = MAX_PAGES_PER_DAY):
                         updated_cards += 1
 
             if page >= total_pages:
-                progress.update_progress(1, total_pages, 'pending')
-                print(f"[{shop_name}] 全ページ巡回完了。次回は最初から開始します。")
+                if not new_arrivals:
+                    progress.update_progress(1, total_pages, 'pending')
+                print(f"[{shop_name}] 全ページ巡回完了。")
                 break
             else:
-                progress.update_progress(page + 1, total_pages, 'in_progress')
+                if not new_arrivals:
+                    progress.update_progress(page + 1, total_pages, 'in_progress')
 
             if i < max_pages - 1:
                 time.sleep(PAGE_INTERVAL)
@@ -1281,6 +1373,8 @@ def main():
                         help="対象ショップ（デフォルト: cardrush）")
     parser.add_argument("--pages", type=int, default=MAX_PAGES_PER_DAY,
                         help=f"処理するページ数（デフォルト: {MAX_PAGES_PER_DAY}）")
+    parser.add_argument("--new-arrivals", action="store_true",
+                        help="新着ページのみ巡回（最新弾のカードを取得）")
     parser.add_argument("--status", action="store_true", help="進捗確認")
     parser.add_argument("--reset", action="store_true", help="進捗リセット")
 
@@ -1312,10 +1406,10 @@ def main():
     try:
         if args.shop == "all":
             for shop_key in SUPPORTED_SHOPS.keys():
-                run_crawl(shop_key, max_pages=args.pages)
+                run_crawl(shop_key, max_pages=args.pages, new_arrivals=args.new_arrivals)
                 print()
         else:
-            run_crawl(args.shop, max_pages=args.pages)
+            run_crawl(args.shop, max_pages=args.pages, new_arrivals=args.new_arrivals)
     finally:
         if lock_fd:
             release_lock(lock_fd)

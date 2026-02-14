@@ -538,6 +538,8 @@ def main():
     parser.add_argument("--status", action="store_true", help="現在の進捗を表示")
     parser.add_argument("--resume", type=str, help="シリーズID:ページ番号 から再開（例: 10410:6）")
     parser.add_argument("--special", action="store_true", help="SALE・傷あり特価ページをクロール")
+    parser.add_argument("--new-arrivals", action="store_true", help="新着順ページ(?st0=1)から取得")
+    parser.add_argument("--pages", type=int, default=5, help="--new-arrivals時の取得ページ数（デフォルト: 5）")
     parser.add_argument("--check-duplicates", type=str, help="既存JSONと重複チェック")
 
     args = parser.parse_args()
@@ -633,6 +635,116 @@ def main():
                     "crawled_at": datetime.now().isoformat(),
                     "total_cards": len(all_cards),
                     "type": "special_partial",
+                    "cards": all_cards,
+                }
+                with open(output_path, "w", encoding="utf-8") as f:
+                    json.dump(result, f, ensure_ascii=False, indent=2)
+                print(f"途中結果を保存: {output_path}")
+
+        finally:
+            print()
+            print("5秒後にブラウザを閉じます...")
+            time.sleep(5)
+            driver.quit()
+
+        return
+
+    # --new-arrivals: 新着順ページからクロール
+    if args.new_arrivals:
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        max_pages = args.pages
+        print(f"ドラスタ 新着クローラー開始")
+        print(f"URL: {BASE_URL}/battlespirits/product-list?st0=1")
+        print(f"取得ページ数: 最大{max_pages}ページ")
+        print()
+        print("※ Cloudflareのチェックが表示されたら手動でクリックしてください")
+        print()
+
+        driver = get_driver()
+        all_cards = []
+
+        try:
+            page = 1
+            # 初回: 新着順URLを開く
+            url = f"{BASE_URL}/battlespirits/product-list?st0=1"
+            print(f"  ページ {page}: {url}")
+            driver.get(url)
+            time.sleep(4)
+
+            # Cloudflareチェック
+            if "お待ち" in driver.title or "moment" in driver.title.lower():
+                wait_for_cloudflare(driver)
+
+            while page <= max_pages:
+                # ページ読み込み待機
+                try:
+                    WebDriverWait(driver, 30).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, "div.element"))
+                    )
+                except:
+                    print("    要素が見つかりません")
+                    break
+
+                time.sleep(2)
+
+                soup = BeautifulSoup(driver.page_source, "lxml")
+
+                # 商品を取得
+                cards = parse_products(soup, "new_arrivals", "新着")
+                if not cards:
+                    print("    カードが見つかりません。終了します。")
+                    break
+
+                all_cards.extend(cards)
+                max_page = get_max_page(soup)
+                print(f"    {len(cards)}件取得 (累計: {len(all_cards)}) [ページ {page}/{max_page}]")
+
+                if page >= max_page or page >= max_pages:
+                    break
+
+                # 次のページへ
+                page += 1
+                print(f"  ページ {page}/{min(max_page, max_pages)}")
+                try:
+                    driver.execute_script(f"$.formSubmit('#form110200', 'search', ['pager', '{page}']);")
+                    time.sleep(INTERVAL)
+
+                    if "お待ち" in driver.title or "moment" in driver.title.lower():
+                        wait_for_cloudflare(driver)
+                except Exception as e:
+                    print(f"    ページ遷移エラー: {e}")
+                    break
+
+            # 結果を保存
+            output_file = args.output if args.output else f"dorasuta_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            output_path = OUTPUT_DIR / output_file
+
+            result = {
+                "crawled_at": datetime.now().isoformat(),
+                "total_cards": len(all_cards),
+                "type": "new_arrivals",
+                "cards": all_cards,
+            }
+
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(result, f, ensure_ascii=False, indent=2)
+
+            print()
+            print(f"新着クロール完了")
+            print(f"  合計カード数: {len(all_cards)}")
+            print(f"  取得ページ数: {page}")
+            print(f"  出力ファイル: {output_path}")
+
+        except Exception as e:
+            print()
+            print(f"エラーで停止: {e}")
+            if all_cards:
+                output_file = f"dorasuta_{datetime.now().strftime('%Y%m%d_%H%M%S')}_partial.json"
+                output_path = OUTPUT_DIR / output_file
+                result = {
+                    "crawled_at": datetime.now().isoformat(),
+                    "total_cards": len(all_cards),
+                    "type": "new_arrivals_partial",
                     "cards": all_cards,
                 }
                 with open(output_path, "w", encoding="utf-8") as f:
